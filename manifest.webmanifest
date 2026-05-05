@@ -1,0 +1,13 @@
+{
+  "name": "Idle Ball Escape",
+  "short_name": "IdleBall",
+  "description": "Bouncing-ball idle game with concentric neon polygon rings and a synthesized 4/4 drum kit.",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#05060c",
+  "theme_color": "#05060c",
+  "icons": [
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}

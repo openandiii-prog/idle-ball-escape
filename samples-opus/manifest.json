@@ -1,0 +1,157 @@
+{
+  "drums": {
+    "kicks": [
+      "MOONBOY - Kick (Acoustic 1).opus",
+      "MOONBOY - Kick (Acoustic 2).opus",
+      "MOONBOY - Kick (Acoustic 3).opus",
+      "MOONBOY - Kick (Acoustic 4).opus",
+      "MOONBOY - Kick (Acoustic 5).opus",
+      "MOONBOY - Kick (Acoustic 6).opus",
+      "MOONBOY - Kick (Distorted Hit).opus",
+      "MOONBOY - Kick (Impact and Air).opus",
+      "MOONBOY - Kick (Round).opus",
+      "MOONBOY - Kick (Soft).opus",
+      "MOONBOY - Kick (Tight and Heavy).opus"
+    ],
+    "snares": [
+      "MOONBOY - Snare (Acoustic).opus",
+      "MOONBOY - Snare (Airy).opus",
+      "MOONBOY - Snare (Dirty).opus",
+      "MOONBOY - Snare (Distorted Impact).opus",
+      "MOONBOY - Snare (Hall).opus",
+      "MOONBOY - Snare (Simple).opus",
+      "MOONBOY - Snare (Tubby).opus"
+    ],
+    "closedHats": [
+      "MOONBOY - Closed Hat 1.opus",
+      "MOONBOY - Closed Hat 2.opus",
+      "MOONBOY - Closed Hat 3.opus",
+      "MOONBOY - Closed Hat 4.opus"
+    ],
+    "openHats": [
+      "MOONBOY - Open Hat.opus"
+    ],
+    "toms": [
+      "MOONBOY - Tom (Hi).opus",
+      "MOONBOY - Tom (Mid 1).opus",
+      "MOONBOY - Tom (Mid 2).opus"
+    ],
+    "tomsLo": [
+      "MOONBOY - Tom (Lo 1).opus",
+      "MOONBOY - Tom (Lo 2).opus"
+    ],
+    "crashes": [
+      "MOONBOY - Crash (Big).opus",
+      "MOONBOY - Crash (Dark).opus"
+    ]
+  },
+  "guitarLoops": [
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 1 - Wet) - 130BPM Dmin.opus",
+      "bpm": 130,
+      "key": "Dmin",
+      "idx": 1
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 2 - Wet) - 130BPM Dmin.opus",
+      "bpm": 130,
+      "key": "Dmin",
+      "idx": 2
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 3 - Wet) - 130BPM Emin.opus",
+      "bpm": 130,
+      "key": "Emin",
+      "idx": 3
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 4 - Wet) - 150BPM Cmin.opus",
+      "bpm": 150,
+      "key": "Cmin",
+      "idx": 4
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 5 - Wet) - 150BPM C#min.opus",
+      "bpm": 150,
+      "key": "C#min",
+      "idx": 5
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 6 - Wet) - 150BPM Bmin.opus",
+      "bpm": 150,
+      "key": "Bmin",
+      "idx": 6
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 7 - Wet) - 170BPM Dmin.opus",
+      "bpm": 170,
+      "key": "Dmin",
+      "idx": 7
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 8 - Wet) - 170BPM Dmin.opus",
+      "bpm": 170,
+      "key": "Dmin",
+      "idx": 8
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 9 - Wet) - 170BPM F#min.opus",
+      "bpm": 170,
+      "key": "F#min",
+      "idx": 9
+    },
+    {
+      "file": "MOONBOY - Guitar Loop (Electric 10 - Wet) - 170BPM Emin.opus",
+      "bpm": 170,
+      "key": "Emin",
+      "idx": 10
+    }
+  ],
+  "drumLoops": [
+    {
+      "file": "MOONBOY - Punk Drum Loop 1 - 76BPM.opus",
+      "bpm": 76,
+      "idx": 1
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 2 - 100BPM.opus",
+      "bpm": 100,
+      "idx": 2
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 3 - 123BPM.opus",
+      "bpm": 123,
+      "idx": 3
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 4 - 130BPM.opus",
+      "bpm": 130,
+      "idx": 4
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 5 - 131BPM.opus",
+      "bpm": 131,
+      "idx": 5
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 6 - 140BPM.opus",
+      "bpm": 140,
+      "idx": 6
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 7 - 150BPM.opus",
+      "bpm": 150,
+      "idx": 7
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 8 - 170BPM.opus",
+      "bpm": 170,
+      "idx": 8
+    },
+    {
+      "file": "MOONBOY - Punk Drum Loop 9 - 170BPM.opus",
+      "bpm": 170,
+      "idx": 9
+    }
+  ]
+}

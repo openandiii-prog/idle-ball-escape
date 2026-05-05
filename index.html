@@ -1,0 +1,2913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#05060c" />
+<title>Idle Ball Escape Â· 3D</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height:100%; width:100%; overflow:hidden; background:#000; color:#e6f0ff; -webkit-tap-highlight-color: transparent; user-select:none; -webkit-user-select:none; }
+  body { font-family:'Orbitron',system-ui,sans-serif; letter-spacing:.03em; position:fixed; inset:0; }
+
+  canvas#game { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:manipulation; }
+  /* Subtle scanline + chromatic-aberration vibes via overlays */
+  .scanlines { position:absolute; inset:0; pointer-events:none;
+    background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,.06) 3px);
+    mix-blend-mode: multiply; opacity:.4; z-index:1; }
+  .vignette { position:absolute; inset:0; pointer-events:none; z-index:2;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%); }
+
+  .ui { position:absolute; inset:0; display:flex; flex-direction:column; pointer-events:none; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)) 14px; z-index:3; }
+  .ui > * { pointer-events:auto; }
+
+  .top { display:grid; grid-template-columns:1fr auto 1fr; align-items:start; gap:12px; padding-top:4px; }
+  .stat-stack { display:flex; flex-direction:column; gap:6px; }
+  .stat { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:16px; color:#f3f6ff; text-shadow:0 0 12px rgba(180,220,255,.35); }
+  .stat .icon { width:18px; height:18px; display:grid; place-items:center; filter:drop-shadow(0 0 6px currentColor); }
+  .stat.cash{color:#ffd66e;} .stat.gems{color:#6fdcff;} .stat.keys{color:#c8d6ee; opacity:.9; font-size:14px;}
+
+  .center-stage { display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; padding-top:2px; }
+  .stage-label { font-size:11px; font-weight:700; letter-spacing:.25em; color:#b9c5dd; }
+  .stage-pct { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:22px; color:#ff5a4d; text-shadow:0 0 14px rgba(255,90,77,.55); transition:color .4s ease, text-shadow .4s ease; }
+  .stage-pct.advanced { color:#76ffb6; text-shadow:0 0 14px rgba(118,255,182,.55); }
+  .progress-track { position:absolute; left:0; right:0; top:0; height:3px; background:rgba(255,255,255,.06); }
+  .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#6fdcff,#b387ff,#ff5a4d); box-shadow:0 0 14px rgba(180,130,255,.7); transition:width .25s ease; }
+
+  .right-stack { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .lvl { font-weight:900; letter-spacing:.15em; font-size:14px; color:#f3f6ff; text-shadow:0 0 10px rgba(180,220,255,.35); }
+  .menu-btn { width:38px; height:38px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(20,24,40,.55); backdrop-filter: blur(8px); display:grid; place-items:center; cursor:pointer; color:#cfd8ee; transition:transform .12s, border-color .2s; }
+  .menu-btn:hover { border-color:rgba(180,220,255,.4); }
+  .menu-btn:active { transform:scale(.94); }
+  .menu-btn .bar { display:block; width:18px; height:2px; background:currentColor; box-shadow:0 -5px 0 currentColor, 0 5px 0 currentColor; }
+
+  .game-area { flex:1; }
+  .bottom { display:flex; flex-direction:column; gap:10px; }
+  .dps-row { display:flex; align-items:center; gap:10px; }
+  .dps-pill { padding:8px 14px; border-radius:999px; background:rgba(15,18,30,.8); border:1px solid rgba(180,220,255,.18); font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:#e8f1ff; box-shadow:0 0 24px rgba(80,140,220,.15), inset 0 0 12px rgba(80,140,220,.08); }
+  .dps-pill .label { color:#8aa0c8; margin-right:4px; }
+
+  .upgrades { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:38vh; overflow-y:auto; overflow-x:hidden; padding:2px 2px 4px; scrollbar-width:thin; scrollbar-color:rgba(180,220,255,.25) transparent; -webkit-overflow-scrolling: touch; }
+  .upgrades::-webkit-scrollbar { width:4px; }
+  .upgrades::-webkit-scrollbar-thumb { background:rgba(180,220,255,.25); border-radius:2px; }
+
+  .upgrade { position:relative; background:linear-gradient(180deg, rgba(28,32,52,.85), rgba(14,16,28,.9)); border:1px solid rgba(180,220,255,.14); border-radius:12px; padding:8px 10px; color:#e8f1ff; cursor:pointer; text-align:left; overflow:hidden; transition:transform .1s, border-color .2s, box-shadow .2s; font-family:inherit; }
+  .upgrade:not(:disabled):hover { border-color:rgba(180,220,255,.28); }
+  .upgrade:not(:disabled):active { transform:translateY(1px) scale(.99); }
+  .upgrade:disabled { opacity:.55; cursor:not-allowed; }
+  .upgrade.affordable { border-color:rgba(255,214,110,.35); box-shadow:0 0 18px rgba(255,214,110,.12); }
+  .upgrade .head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; }
+  .upgrade .name { font-weight:900; letter-spacing:.12em; font-size:10px; color:#cfd8ee; }
+  .upgrade .lv { font-family:'JetBrains Mono',monospace; font-size:9px; color:#8aa0c8; letter-spacing:.1em; }
+  .upgrade .value { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:22px; line-height:1; margin:4px 0 6px; color:#f8fbff; text-shadow:0 0 12px rgba(180,220,255,.3); }
+  .upgrade .value .suffix { font-size:14px; opacity:.75; margin-left:1px; }
+  .upgrade .sub { font-size:9px; letter-spacing:.12em; color:#8aa0c8; margin-bottom:6px; min-height:11px; }
+  .upgrade .mult-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .upgrade .mult-bar { flex:1; height:5px; border-radius:999px; background:rgba(255,255,255,.07); overflow:hidden; }
+  .upgrade .mult-fill { height:100%; width:0%; background:linear-gradient(90deg,#ffb84d,#ffd66e); box-shadow:0 0 8px rgba(255,200,90,.5); transition:width .2s; }
+  .upgrade .mult-tag { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#ffd66e; }
+  .upgrade .cost { display:flex; align-items:center; justify-content:center; gap:5px; background:rgba(255,255,255,.04); border-radius:6px; padding:4px 8px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#ffd66e; }
+  .upgrade .cost.too-expensive { color:#ff7a7a; }
+
+  .upgrade.damage::before    { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 0% 0%, rgba(255,100,100,.12), transparent 60%); }
+  .upgrade.income::before    { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 100% 0%, rgba(255,200,90,.12), transparent 60%); }
+  .upgrade.velocity::before  { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 0% 100%, rgba(120,220,255,.15), transparent 60%); }
+  .upgrade.multiball::before { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 100% 100%, rgba(255,130,220,.14), transparent 60%); }
+  .upgrade.crit::before      { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 50% 0%, rgba(255,60,60,.15), transparent 60%); }
+  .upgrade.slow::before      { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 0% 50%, rgba(140,130,255,.15), transparent 60%); }
+  .upgrade.pierce::before    { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 100% 50%, rgba(120,255,180,.14), transparent 60%); }
+
+  /* Toast */
+  .toast-host { position:absolute; left:50%; top:55%; transform:translate(-50%,-50%); pointer-events:none; z-index:10; }
+  .toast { font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:.2em; color:#fff; text-shadow:0 0 18px rgba(255,255,255,.6), 0 0 36px rgba(120,200,255,.5); font-size:28px; opacity:0; transform:scale(.9); animation:toast-in 1.6s ease-out forwards; }
+  @keyframes toast-in { 0%{opacity:0;transform:scale(.85) translateY(10px);} 20%{opacity:1;transform:scale(1.05) translateY(-2px);} 60%{opacity:1;transform:scale(1) translateY(-6px);} 100%{opacity:0;transform:scale(1) translateY(-30px);} }
+
+  .modal-backdrop { position:absolute; inset:0; background:rgba(5,6,12,.8); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
+  .modal-backdrop.open { display:flex; }
+  .modal { background:linear-gradient(180deg, rgba(28,32,52,.95), rgba(14,16,28,.98)); border:1px solid rgba(180,220,255,.2); border-radius:16px; max-width:380px; width:100%; padding:22px 22px 18px; color:#e8f1ff; }
+  .modal h2 { font-size:16px; letter-spacing:.2em; margin-bottom:12px; color:#cfd8ee; }
+  .modal .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid rgba(255,255,255,.06); font-family:'JetBrains Mono',monospace; font-size:13px; }
+  .modal .row:first-of-type { border-top:none; }
+  .modal .row .lbl { color:#8aa0c8; letter-spacing:.12em; }
+  .modal .row .val { color:#f8fbff; }
+  .modal-actions { display:flex; gap:10px; margin-top:14px; }
+  .modal-actions button { flex:1; padding:10px; border-radius:10px; background:rgba(255,255,255,.04); color:#cfd8ee; border:1px solid rgba(180,220,255,.18); font-family:'Orbitron',sans-serif; font-weight:700; letter-spacing:.15em; font-size:11px; cursor:pointer; }
+  .modal-actions button.danger { color:#ff8a8a; border-color:rgba(255,138,138,.3); }
+  .modal-actions button.primary { color:#6fdcff; border-color:rgba(111,220,255,.35); }
+
+  .offline-toast { position:absolute; top:64px; left:50%; transform:translateX(-50%); background:rgba(15,18,30,.92); border:1px solid rgba(255,214,110,.4); border-radius:12px; padding:10px 16px; font-family:'JetBrains Mono',monospace; font-size:13px; color:#ffd66e; box-shadow:0 0 24px rgba(255,214,110,.25); z-index:15; animation:slidein 4s ease forwards; }
+  @keyframes slidein { 0%{opacity:0; transform:translateX(-50%) translateY(-8px);} 10%,80%{opacity:1; transform:translateX(-50%) translateY(0);} 100%{opacity:0; transform:translateX(-50%) translateY(-8px);} }
+
+  .hp-floater { position:absolute; pointer-events:none; font-family:'JetBrains Mono', monospace; font-weight:700; font-size:13px; color:rgba(255,255,255,.95); text-shadow: 0 0 8px rgba(0,0,0,.8); z-index:4; transform:translate(-50%,-50%); }
+
+  /* Pack modal */
+  .pack-status { font-family:'JetBrains Mono',monospace; font-size:12px; color:#cfd8ee; padding:10px 12px; background:rgba(255,255,255,.04); border-radius:8px; margin-bottom:12px; word-break:break-word; }
+  .pack-status .pack-name { color:#6fdcff; font-weight:700; letter-spacing:.08em; }
+  .pack-status .pack-bpm { color:#ffd66e; }
+  .pack-actions { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .pack-actions button { padding:11px 14px; border-radius:10px; background:rgba(255,255,255,.04); color:#cfd8ee; border:1px solid rgba(180,220,255,.18); font-family:'Orbitron',sans-serif; font-weight:700; letter-spacing:.15em; font-size:11px; cursor:pointer; }
+  .pack-actions button.primary { color:#6fdcff; border-color:rgba(111,220,255,.45); background:rgba(111,220,255,.06); }
+  .pack-actions button.accent  { color:#ffd66e; border-color:rgba(255,214,110,.4); }
+  .pack-actions button:disabled { opacity:.45; cursor:not-allowed; }
+  .pack-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-family:'JetBrains Mono',monospace; font-size:12px; padding:10px 0; border-top:1px solid rgba(255,255,255,.06); }
+  .pack-grid .lbl { color:#8aa0c8; letter-spacing:.1em; }
+  .pack-grid .val { color:#f8fbff; text-align:right; }
+  .pack-progress { height:4px; border-radius:2px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:8px; display:none; }
+  .pack-progress.active { display:block; }
+  .pack-progress .fill { height:100%; width:0%; background:linear-gradient(90deg,#6fdcff,#b387ff); transition:width .15s ease; }
+  .pack-note { font-size:10px; line-height:1.5; color:#8aa0c8; letter-spacing:.04em; padding-top:6px; }
+
+  @media (max-width:360px) { .upgrade .value { font-size:20px; } .stat { font-size:14px; } }
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+  <div class="hp-floater" id="hpFloater" style="display:none;">0</div>
+
+  <div class="ui">
+    <header class="top">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="stat-stack">
+        <span class="stat cash"><span class="icon">ð°</span><span id="cashVal">50</span></span>
+        <span class="stat gems"><span class="icon">â</span><span id="gemVal">595</span></span>
+        <span class="stat keys"><span class="icon">ð</span><span class="num" id="keyVal">2</span></span>
+      </div>
+      <div class="center-stage">
+        <div class="stage-label" id="stageLabel">STAGE 1 Â· CIRCLE</div>
+        <div class="stage-pct" id="stagePct">0%</div>
+      </div>
+      <div class="right-stack">
+        <div class="lvl" id="lvlVal">LVL 1</div>
+        <div style="display:flex; gap:6px;">
+          <button class="menu-btn" id="packBtn" aria-label="Sample pack" title="Load sample pack">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+            </svg>
+          </button>
+          <button class="menu-btn" id="muteBtn" aria-label="Mute" title="Toggle sound">
+            <svg id="muteIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            </svg>
+          </button>
+          <button class="menu-btn" id="menuBtn" aria-label="Menu"><span class="bar"></span></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="game-area"></div>
+
+    <div class="bottom">
+      <div class="dps-row">
+        <div class="dps-pill"><span class="label">DPS:</span><span id="dpsVal">10</span></div>
+        <div class="dps-pill"><span class="label">BALLS:</span><span id="ballCountVal">1</span></div>
+      </div>
+
+      <div class="upgrades">
+        <button class="upgrade damage" id="dmgBtn">
+          <div class="head"><div class="name">DAMAGE</div><div class="lv" id="dmgLv">LEVEL 1</div></div>
+          <div class="value" id="dmgVal">1</div>
+          <div class="mult-row"><div class="mult-bar"><div class="mult-fill" id="dmgMultFill"></div></div><div class="mult-tag" id="dmgMultTag">Ã2</div></div>
+          <div class="cost"><span>ð°</span><span id="dmgCost">8</span></div>
+        </button>
+        <button class="upgrade income" id="cashBtn">
+          <div class="head"><div class="name">CASH INCOME</div><div class="lv" id="cashLv">LEVEL 1</div></div>
+          <div class="value" id="cashIncVal">1</div>
+          <div class="mult-row"><div class="mult-bar"><div class="mult-fill" id="cashMultFill"></div></div><div class="mult-tag" id="cashMultTag">Ã2</div></div>
+          <div class="cost"><span>ð°</span><span id="cashCost">10</span></div>
+        </button>
+        <button class="upgrade velocity" id="velBtn">
+          <div class="head"><div class="name">VELOCITY</div><div class="lv" id="velLv">LEVEL 0</div></div>
+          <div class="value"><span id="velVal">1.00</span><span class="suffix">Ã</span></div>
+          <div class="sub">FASTER BOUNCE</div>
+          <div class="cost"><span>ð°</span><span id="velCost">20</span></div>
+        </button>
+        <button class="upgrade multiball" id="mbBtn">
+          <div class="head"><div class="name">MULTI-BALL</div><div class="lv" id="mbLv">LEVEL 0</div></div>
+          <div class="value" id="mbVal">1</div>
+          <div class="sub">EXTRA BALL</div>
+          <div class="cost"><span>ð°</span><span id="mbCost">120</span></div>
+        </button>
+        <button class="upgrade crit" id="critBtn">
+          <div class="head"><div class="name">CRIT</div><div class="lv" id="critLv">LEVEL 0</div></div>
+          <div class="value"><span id="critVal">0</span><span class="suffix">%</span></div>
+          <div class="sub">Ã5 ON CRIT</div>
+          <div class="cost"><span>ð°</span><span id="critCost">35</span></div>
+        </button>
+        <button class="upgrade slow" id="slowBtn">
+          <div class="head"><div class="name">DAMPENER</div><div class="lv" id="slowLv">LEVEL 0</div></div>
+          <div class="value"><span id="slowVal">0</span><span class="suffix">%</span></div>
+          <div class="sub">SLOWS RING APPROACH</div>
+          <div class="cost"><span>ð°</span><span id="slowCost">60</span></div>
+        </button>
+        <button class="upgrade pierce" id="pierceBtn">
+          <div class="head"><div class="name">PIERCE</div><div class="lv" id="pierceLv">LEVEL 0</div></div>
+          <div class="value"><span id="pierceVal">0</span><span class="suffix">%</span></div>
+          <div class="sub">HITS ALL RINGS</div>
+          <div class="cost"><span>ð°</span><span id="pierceCost">140</span></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="toast-host" id="toastHost"></div>
+  </div>
+
+  <div class="modal-backdrop" id="gameOverModal">
+    <div class="modal" style="text-align:center;">
+      <h2 style="color:#ff5a4d; text-shadow:0 0 18px rgba(255,90,77,.5); font-size:22px; letter-spacing:.3em; margin-bottom:16px;">CRUSHED</h2>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#8aa0c8; margin-bottom:8px; letter-spacing:.1em;">YOU REACHED</div>
+      <div style="font-family:'Orbitron',sans-serif; font-weight:900; font-size:42px; color:#f8fbff; text-shadow:0 0 16px rgba(180,220,255,.4); margin-bottom:18px;" id="goStage">STAGE 1</div>
+      <div class="row"><span class="lbl">DAMAGE LEVEL</span><span class="val" id="goDmg">1</span></div>
+      <div class="row"><span class="lbl">DPS AT END</span><span class="val" id="goDps">0</span></div>
+      <div class="row"><span class="lbl">TOTAL EARNED</span><span class="val" id="goTotal">0</span></div>
+      <div class="modal-actions" style="margin-top:18px;">
+        <button class="primary" id="retryBtn">RETRY</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="packModal">
+    <div class="modal">
+      <h2>SAMPLE PACK</h2>
+      <div class="pack-status" id="packStatus">
+        <div>NOW PLAYING:</div>
+        <div class="pack-name" id="packName">MOONBOY · Punk Live</div>
+        <div>BPM <span class="pack-bpm" id="packBpm">—</span> · STAGE <span id="packStage">1</span></div>
+      </div>
+      <div class="pack-actions">
+        <button class="primary" id="loadPackBtn">LOAD PACK FOLDER…</button>
+        <button class="accent"  id="rerollKitBtn">RE-ROLL KIT</button>
+        <button id="resetPackBtn">RESTORE BUNDLED PACK</button>
+      </div>
+      <input type="file" id="packFileInput" webkitdirectory directory multiple style="display:none" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" />
+      <div class="pack-progress" id="packProgress"><div class="fill" id="packProgressFill"></div></div>
+      <div class="pack-grid" id="packStats">
+        <span class="lbl">KICKS</span>      <span class="val" id="psKicks">—</span>
+        <span class="lbl">SNARES</span>     <span class="val" id="psSnares">—</span>
+        <span class="lbl">CLOSED HATS</span><span class="val" id="psClosedHats">—</span>
+        <span class="lbl">OPEN HATS</span>  <span class="val" id="psOpenHats">—</span>
+        <span class="lbl">TOMS</span>       <span class="val" id="psToms">—</span>
+        <span class="lbl">CRASHES</span>    <span class="val" id="psCrashes">—</span>
+        <span class="lbl">PERC</span>       <span class="val" id="psPerc">—</span>
+        <span class="lbl">BASS</span>       <span class="val" id="psBass">—</span>
+        <span class="lbl">MELODIC LOOPS</span><span class="val" id="psGuitar">—</span>
+        <span class="lbl">DRUM LOOPS</span> <span class="val" id="psDrumLoops">—</span>
+      </div>
+      <div class="pack-note" id="packNote">Pick any folder of WAV / MP3 / OGG / FLAC samples. Filenames containing "kick", "snare", "hat", "tom", "loop", BPM (e.g. "130BPM"), and key markers are auto-categorized. Pack handle is remembered for next session.</div>
+      <div class="modal-actions">
+        <button class="primary" id="closePackModal">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h2>SETTINGS</h2>
+      <div class="row"><span class="lbl">STAGE</span><span class="val" id="mStage">1</span></div>
+      <div class="row"><span class="lbl">LEVEL</span><span class="val" id="mLevel">1</span></div>
+      <div class="row"><span class="lbl">DPS</span><span class="val" id="mDps">10</span></div>
+      <div class="row"><span class="lbl">CASH/SEC</span><span class="val" id="mCps">1</span></div>
+      <div class="row"><span class="lbl">TOTAL EARNED</span><span class="val" id="mTotal">0</span></div>
+      <div class="modal-actions">
+        <button class="primary" id="closeModal">CLOSE</button>
+        <button class="danger" id="resetGame">RESET</button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  // Storage shim â use window.storage when running inside Claude.ai (artifact);
+  // fall back to localStorage when deployed standalone (file://, GitHub Pages, etc.)
+  const storage = (() => {
+    try {
+      if (window.storage && typeof storage.set === 'function') return window.storage;
+    } catch (_) {}
+    try {
+      const ls = window.localStorage;
+      ls.setItem('__t','1'); ls.removeItem('__t');
+      return {
+        set: async (k, v) => { ls.setItem(k, v); return { key: k, value: v }; },
+        get: async (k) => { const v = ls.getItem(k); return v != null ? { key: k, value: v } : null; },
+        delete: async (k) => { ls.removeItem(k); return { key: k, deleted: true }; },
+      };
+    } catch (e) {
+      const mem = new Map();
+      return {
+        set: async (k, v) => { mem.set(k, v); return { key: k, value: v }; },
+        get: async (k) => mem.has(k) ? { key: k, value: mem.get(k) } : null,
+        delete: async (k) => { mem.delete(k); return { key: k, deleted: true }; },
+      };
+    }
+  })();
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  const CONFIG = {
+    cameraZ: 45,             // pulled back so all concentric layers fit in frame
+    fov: 65,
+    ballZ: 8,                // ball + active (innermost) ring locked at this z (close to camera, prominent)
+    layerZStagger: 0.06,     // micro z-spacing between concentric layers â avoids z-fighting only
+    baseRingSpeedZ: 0,       // (legacy â no longer used; rings are concentric, not queued in z)
+    ringSpeedPerStage: 0,
+    ringSwapDuration: 0.0,   // (legacy â no slide-in needed; layers already in place)
+    baseShrinkRate: 0.18,    // active ring radius shrinks at this many world units per second
+    shrinkPerStage: 0.05,    // shrink rate increases each stage â escalating squeeze pressure
+    minActiveRadius: 1.6,    // when active ring shrinks to this, ball is crushed (game over)
+    baseBallSpeed: 22,       // 2D bounce magnitude in active ring's plane (world units/sec)
+    baseRingRadius: 8,
+    ringRadiusStep: 2.8,     // each outer ring is +N radius (kept tight so up to 8 rings fit in tunnel R=32)
+    enemySpeed: 32,
+    enemyStartZ: -160,
+    enemyDespawnZ: 45,
+    enemySpawnInterval: 9,
+    // Tracker (homing) enemy: slower than spike but locks onto nearest ball over its flight.
+    trackerSpeed: 16,
+    trackerSpawnInterval: 14,    // unlocks at stage 5; rate ramps as stage advances
+    trackerHomingRate: 1.6,      // xy units/sec it drifts toward target ball
+    starCount: 900,
+    streakCount: 350,
+    tunnelRadius: 32,
+    tunnelSides: 8,
+    tunnelLength: 380,
+    tunnelStartZ: 25,
+    tunnelCrossCount: 32,
+  };
+
+  // ============================================================
+  // SHAPES
+  // ============================================================
+  const SHAPES = [
+    { sides: 0, name: 'CIRCLE'   },
+    { sides: 6, name: 'HEXAGON'  },
+    { sides: 3, name: 'TRIANGLE' },
+    { sides: 4, name: 'SQUARE'   },
+    { sides: 5, name: 'PENTAGON' },
+    { sides: 8, name: 'OCTAGON'  },
+  ];
+  const pickShapeForStage = stage => stage === 1 ? SHAPES[0] : SHAPES[(stage - 1) % SHAPES.length];
+
+  // ============================================================
+  // AUDIO (Web Audio synth)
+  // ============================================================
+  const audio = { ctx:null, master:null, muted:false, lastBounce:0, bounceCount:0 };
+  function initAudio() {
+    if (audio.ctx) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audio.ctx = new AC();
+      audio.master = audio.ctx.createGain();
+      audio.master.gain.value = 0.32;
+      audio.master.connect(audio.ctx.destination);
+    } catch {}
+  }
+  // ---------- DRUM KIT â one drum per ball, locked to a 4/4 grid ----------
+  // Each drum accepts an optional `when` (AudioContext time) so the scheduler
+  // can pre-queue beats with sample-accurate timing.
+
+  // Per-ball throttle â used by the soft bounce tick so a single ball can't
+  // flam-stutter at very high speeds.
+  function _ballThrottle(ballIdx, ms = 30) {
+    if (!audio.ctx) return true;
+    if (!audio._lastBounceByBall) audio._lastBounceByBall = {};
+    const now = audio.ctx.currentTime;
+    const last = audio._lastBounceByBall[ballIdx] || 0;
+    if (now - last < ms / 1000) return true;
+    audio._lastBounceByBall[ballIdx] = now;
+    return false;
+  }
+
+  // Bounce tick â quiet, high-frequency click on physical wall hits.
+  // Doesn't compete with the beat; just gives bounces audio feedback.
+  function sndBounce(ballIdx = 0) {
+    if (!audio.ctx || audio.muted) return;
+    if (_ballThrottle(ballIdx, 30)) return;
+    const ctx = audio.ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = 3500 + (ballIdx % 6) * 380;
+    g.gain.setValueAtTime(0.025, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+    o.connect(g); g.connect(audio.master);
+    o.start(now); o.stop(now + 0.014);
+  }
+
+  // Drum dispatcher — sample-first, falls back to synth if samples haven't loaded yet.
+  // In Phase 2 the BEAT scheduler still runs so per-ball drums layer ON TOP of the full drum loop.
+  function playDrum(drumIdx, when) {
+    if (!audio.ctx || audio.muted) return;
+    if (samples.loaded) {
+      const pick = pickSampleForDrum(drumIdx, state.stage);
+      if (pick && pick.buf) {
+        // In Phase 2 layered drums sit a touch quieter so the full drum loop still leads
+        const g = state.phase2 ? pick.gain * 0.7 : pick.gain;
+        playSampleBuffer(pick.buf, when, g);
+        return;
+      }
+    }
+    // Synth fallback (samples not yet loaded, or load failed)
+    if      (drumIdx === 0) sndKick(when);
+    else if (drumIdx === 1) sndSnare(when);
+    else if (drumIdx === 2) sndHiHat(when);
+    else if (drumIdx === 3) sndOpenHat(when);  // tom slot — fallback to open hat
+    else if (drumIdx === 4) sndCowbell(when);  // open hat slot — fallback to cowbell
+    else if (drumIdx === 5) sndBass(when);     // tom-lo (bass voice) — fallback to synth bass
+  }
+
+  // 1. KICK
+  function sndKick(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.09);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.7, now + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.connect(g); g.connect(audio.master);
+    osc.start(now); osc.stop(now + 0.24);
+    const c = ctx.createOscillator(), cg = ctx.createGain();
+    c.type = 'square'; c.frequency.value = 1400;
+    cg.gain.setValueAtTime(0.18, now);
+    cg.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+    c.connect(cg); cg.connect(audio.master);
+    c.start(now); c.stop(now + 0.014);
+  }
+
+  // 2. SNARE
+  function sndSnare(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(230, now);
+    o.frequency.exponentialRampToValueAtTime(120, now + 0.05);
+    og.gain.setValueAtTime(0, now);
+    og.gain.linearRampToValueAtTime(0.32, now + 0.004);
+    og.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+    o.connect(og); og.connect(audio.master);
+    o.start(now); o.stop(now + 0.12);
+    const bufLen = (ctx.sampleRate * 0.22) | 0;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 0.7;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.5, now);
+    ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    noise.connect(f); f.connect(ng); ng.connect(audio.master);
+    noise.start(now); noise.stop(now + 0.2);
+  }
+
+  // 3. CLOSED HI-HAT
+  function sndHiHat(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const bufLen = (ctx.sampleRate * 0.08) | 0;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7500;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 9500; bp.Q.value = 0.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    noise.connect(hp); hp.connect(bp); bp.connect(g); g.connect(audio.master);
+    noise.start(now); noise.stop(now + 0.06);
+  }
+
+  // 4. OPEN HAT
+  function sndOpenHat(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const bufLen = (ctx.sampleRate * 0.5) | 0;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7000;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 9200; bp.Q.value = 0.5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.24, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+    noise.connect(hp); hp.connect(bp); bp.connect(g); g.connect(audio.master);
+    noise.start(now); noise.stop(now + 0.42);
+  }
+
+  // 5. DIGITAL COWBELL â classic 808
+  function sndCowbell(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+    o1.type = 'square'; o1.frequency.value = 540;
+    o2.type = 'square'; o2.frequency.value = 800;
+    const sum = ctx.createGain(); sum.gain.value = 0.5;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 800; f.Q.value = 1.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.42, now + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    o1.connect(sum); o2.connect(sum); sum.connect(f); f.connect(g); g.connect(audio.master);
+    o1.start(now); o2.start(now);
+    o1.stop(now + 0.24); o2.stop(now + 0.24);
+  }
+
+  // 6. BASS â sub + octave
+  function sndBass(when) {
+    if (!audio.ctx) return;
+    const ctx = audio.ctx, now = (when != null) ? when : ctx.currentTime;
+    const sub = ctx.createOscillator(), sg = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(82, now);
+    sub.frequency.exponentialRampToValueAtTime(58, now + 0.18);
+    sg.gain.setValueAtTime(0, now);
+    sg.gain.linearRampToValueAtTime(0.55, now + 0.012);
+    sg.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+    sub.connect(sg); sg.connect(audio.master);
+    sub.start(now); sub.stop(now + 0.34);
+    const h = ctx.createOscillator(), hg = ctx.createGain();
+    h.type = 'triangle';
+    h.frequency.setValueAtTime(164, now);
+    h.frequency.exponentialRampToValueAtTime(118, now + 0.14);
+    hg.gain.setValueAtTime(0, now);
+    hg.gain.linearRampToValueAtTime(0.16, now + 0.006);
+    hg.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+    h.connect(hg); hg.connect(audio.master);
+    h.start(now); h.stop(now + 0.28);
+  }
+
+  // ---------- 4/4 STEP SEQUENCER ----------
+  // 16 sixteenth-note steps per bar at fixed BPM. Each drum has a fixed pattern.
+  // A drum's step only fires if a ball with that drum index exists.
+  const BEAT = {
+    bpm: 128,
+    stepDuration: 0,
+    startTime: null,
+    nextStep: 0,
+    schedulerInterval: null,
+    // Punk kit pattern. Step 0 = beat 1 downbeat, step 4 = beat 2, etc.
+    // Drum mapping (per ball index): 0=KICK, 1=SNARE, 2=CLOSED HAT, 3=TOM, 4=OPEN HAT, 5=TOM LO (bass voice).
+    // Balls 7+ wrap (index % 6) so a 7th ball stacks more kick density, 8th adds more snare, etc.
+    patterns: [
+      [0, 4, 8, 12],         // 0 KICK: four-on-the-floor
+      [4, 12],               // 1 SNARE: backbeat (beats 2 + 4)
+      [2, 6, 10, 14],        // 2 CLOSED HAT: 8th-note off-beats
+      [11, 15],              // 3 TOM: end-of-bar fills (and-a-of-3, last 16th)
+      [6, 14],               // 4 OPEN HAT: classic and-of-2 / and-of-4
+      [0, 4, 8, 12],         // 5 TOM LO (bass voice): with the kick
+    ],
+    pulseStepsForKick: new Set([0, 4, 8, 12]),
+  };
+
+  function startBeat() {
+    if (!audio.ctx) return;
+    if (BEAT.schedulerInterval) return; // already running
+    BEAT.stepDuration = (60 / BEAT.bpm) / 4; // 16th-note duration in seconds
+    BEAT.startTime = audio.ctx.currentTime + 0.12; // small lead-in
+    BEAT.nextStep = 0;
+    BEAT.schedulerInterval = setInterval(beatTick, 25);
+  }
+
+  function beatTick() {
+    if (!audio.ctx) return;
+    const lookaheadEnd = audio.ctx.currentTime + 0.1; // schedule 100ms ahead
+    while (BEAT.startTime + BEAT.nextStep * BEAT.stepDuration < lookaheadEnd) {
+      const stepTime = BEAT.startTime + BEAT.nextStep * BEAT.stepDuration;
+      const stepInBar = BEAT.nextStep % 16;
+      if (!audio.muted) {
+        for (let drumIdx = 0; drumIdx < 6; drumIdx++) {
+          if (!BEAT.patterns[drumIdx].includes(stepInBar)) continue;
+          // Drum plays only if a ball of that drum-class exists (state.balls[i] where i % 6 === drumIdx)
+          let hasBall = false;
+          for (let i = 0; i < state.balls.length; i++) {
+            if (i % 6 === drumIdx) { hasBall = true; break; }
+          }
+          if (hasBall) playDrum(drumIdx, stepTime);
+        }
+      }
+      // Visual: tunnel pulses on every kick step, even when muted
+      if (BEAT.pulseStepsForKick.has(stepInBar)) {
+        const pulseAt = stepTime - audio.ctx.currentTime; // seconds from now
+        // Schedule pulse to apply at the right moment via setTimeout
+        const ms = Math.max(0, pulseAt * 1000);
+        setTimeout(() => { state.tunnelPulse = Math.min(1, state.tunnelPulse + 0.35); }, ms);
+      }
+      BEAT.nextStep++;
+    }
+  }
+  // ---------- end drum kit ----------
+  function sndShatter(pitch = 1) {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime, ctx = audio.ctx;
+    const bufLen = ctx.sampleRate * .5;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const nF = ctx.createBiquadFilter(); nF.type = 'highpass';
+    nF.frequency.setValueAtTime(2000 * pitch, now);
+    nF.frequency.exponentialRampToValueAtTime(800, now + .4);
+    const nG = ctx.createGain(); nG.gain.setValueAtTime(.4, now);
+    nG.gain.exponentialRampToValueAtTime(.0001, now + .45);
+    noise.connect(nF); nF.connect(nG); nG.connect(audio.master);
+    noise.start(now); noise.stop(now + .5);
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(180 * pitch, now);
+    o.frequency.exponentialRampToValueAtTime(60, now + .25);
+    g.gain.setValueAtTime(.5, now); g.gain.exponentialRampToValueAtTime(.0001, now + .3);
+    o.connect(g); g.connect(audio.master); o.start(now); o.stop(now + .32);
+  }
+  function sndStageUp() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime;
+    [261.63, 392.00, 523.25, 659.25].forEach((f, i) => {
+      const o = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      const s = now + i * .07;
+      g.gain.setValueAtTime(0, s);
+      g.gain.linearRampToValueAtTime(.18, s + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, s + .5);
+      o.connect(g); g.connect(audio.master); o.start(s); o.stop(s + .55);
+    });
+  }
+  function sndUpgrade() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime;
+    const o = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(440, now);
+    o.frequency.exponentialRampToValueAtTime(880, now + .08);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(.12, now + .005);
+    g.gain.exponentialRampToValueAtTime(.0001, now + .1);
+    o.connect(g); g.connect(audio.master); o.start(now); o.stop(now + .12);
+  }
+  function sndBoost() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime;
+    const o = audio.ctx.createOscillator(), g = audio.ctx.createGain(), f = audio.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(400, now);
+    f.frequency.exponentialRampToValueAtTime(3000, now + .2);
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(220, now);
+    o.frequency.exponentialRampToValueAtTime(660, now + .2);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(.14, now + .02);
+    g.gain.exponentialRampToValueAtTime(.0001, now + .25);
+    o.connect(f); f.connect(g); g.connect(audio.master); o.start(now); o.stop(now + .27);
+  }
+  function sndGameOver() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime, ctx = audio.ctx;
+    [0, -7].forEach((semi) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.setValueAtTime(2000, now);
+      f.frequency.exponentialRampToValueAtTime(200, now + 1.2);
+      o.type = 'sawtooth';
+      const sf = 330 * Math.pow(2, semi / 12);
+      o.frequency.setValueAtTime(sf, now);
+      o.frequency.exponentialRampToValueAtTime(sf * .3, now + 1);
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(.18, now + .05);
+      g.gain.exponentialRampToValueAtTime(.0001, now + 1.3);
+      o.connect(f); f.connect(g); g.connect(audio.master); o.start(now); o.stop(now + 1.35);
+    });
+  }
+  function sndSpike() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime;
+    const o = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(660, now);
+    o.frequency.exponentialRampToValueAtTime(120, now + .35);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(.25, now + .01);
+    g.gain.exponentialRampToValueAtTime(.0001, now + .4);
+    o.connect(g); g.connect(audio.master); o.start(now); o.stop(now + .42);
+  }
+  function sndTracker() {
+    if (!audio.ctx || audio.muted) return;
+    const now = audio.ctx.currentTime;
+    const o = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(940, now);
+    o.frequency.exponentialRampToValueAtTime(220, now + .3);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(.18, now + .01);
+    g.gain.exponentialRampToValueAtTime(.0001, now + .35);
+    o.connect(g); g.connect(audio.master); o.start(now); o.stop(now + .38);
+  }
+
+  // ============================================================
+  // SAMPLES (MOONBOY Punk Live pack — loaded from samples-opus/manifest.json)
+  // ============================================================
+  // Bundled pack base path. samples-opus/ is the deployable Opus mirror (~13MB);
+  // change to 'samples' to switch back to the WAV originals during local dev.
+  const BUNDLED_PACK_BASE = 'samples-opus';
+  const samples = {
+    manifest: null,
+    drums: { kicks: [], snares: [], closedHats: [], openHats: [], toms: [], tomsLo: [], crashes: [] },
+    guitarLoops: [], // [{file, bpm, key, idx, buffer}]
+    drumLoops: [],   // [{file, bpm, idx, buffer}]
+    loaded: false,
+    loadStarted: false,
+  };
+  // Currently-playing long-running sources (so we can stop them on stage swap)
+  const playingSrc = { guitar: null, fullDrum: null };
+
+  async function loadSampleBuffer(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
+    const ab = await res.arrayBuffer();
+    return await audio.ctx.decodeAudioData(ab);
+  }
+
+  async function loadManifestAndSamples() {
+    if (!audio.ctx) initAudio();
+    if (!audio.ctx || samples.loadStarted) return;
+    samples.loadStarted = true;
+    try {
+      const m = await (await fetch(BUNDLED_PACK_BASE + '/manifest.json')).json();
+      samples.manifest = m;
+      // Eager: all drum one-shots in parallel (small, ~1.5MB total at Opus 96k)
+      const tasks = [];
+      for (const cat of Object.keys(m.drums)) {
+        samples.drums[cat] = []; // ordered by manifest
+        for (let i = 0; i < m.drums[cat].length; i++) {
+          const file = m.drums[cat][i];
+          const url = BUNDLED_PACK_BASE + '/drums/' + encodeURIComponent(file);
+          tasks.push(loadSampleBuffer(url)
+            .then(buf => { samples.drums[cat][i] = buf; })
+            .catch(err => console.warn('drum load failed', file, err)));
+        }
+      }
+      await Promise.all(tasks);
+      // Lazy: guitar + full drum loops loaded on first use
+      samples.guitarLoops = m.guitarLoops.map(g => ({ ...g, buffer: null }));
+      samples.drumLoops   = m.drumLoops.map(d  => ({ ...d, buffer: null }));
+      samples.loaded = true;
+      // Now that drums are ready, start music for the current stage
+      setStageMusic(state.stage);
+    } catch (e) {
+      console.warn('samples failed; using synth fallback', e);
+    }
+  }
+
+  async function ensureGuitarLoop(idx) {
+    const slot = samples.guitarLoops[idx]; if (!slot) return null;
+    if (!slot.buffer) {
+      try {
+        if (slot._getFile) {
+          const file = await slot._getFile();
+          const ab = await file.arrayBuffer();
+          slot.buffer = await audio.ctx.decodeAudioData(ab);
+        } else {
+          slot.buffer = await loadSampleBuffer(BUNDLED_PACK_BASE + '/guitar/' + encodeURIComponent(slot.file));
+        }
+      } catch (e) { console.warn('guitar load failed', slot.file, e); return null; }
+    }
+    return slot;
+  }
+  async function ensureDrumLoop(idx) {
+    const slot = samples.drumLoops[idx]; if (!slot) return null;
+    if (!slot.buffer) {
+      try {
+        if (slot._getFile) {
+          const file = await slot._getFile();
+          const ab = await file.arrayBuffer();
+          slot.buffer = await audio.ctx.decodeAudioData(ab);
+        } else {
+          slot.buffer = await loadSampleBuffer(BUNDLED_PACK_BASE + '/loops/' + encodeURIComponent(slot.file));
+        }
+      } catch (e) { console.warn('drum loop load failed', slot.file, e); return null; }
+    }
+    return slot;
+  }
+
+  function playSampleBuffer(buffer, when, gain = 0.7, opts = {}) {
+    if (!audio.ctx || !buffer) return null;
+    const src = audio.ctx.createBufferSource();
+    src.buffer = buffer;
+    if (opts.loop) src.loop = true;
+    if (opts.playbackRate) src.playbackRate.value = opts.playbackRate;
+    const g = audio.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g); g.connect(audio.master);
+    src.start(when != null ? when : audio.ctx.currentTime, 0);
+    return { src, g };
+  }
+
+  // Drum index → sample buffer + gain. Variant cycles by stage so each stage feels different.
+  function pickSampleForDrum(drumIdx, stage) {
+    const d = samples.drums;
+    const cycle = arr => arr.length ? arr[(stage - 1) % arr.length] : null;
+    if (drumIdx === 0) return { buf: cycle(d.kicks),      gain: 0.95 };  // KICK
+    if (drumIdx === 1) return { buf: cycle(d.snares),     gain: 0.75 };  // SNARE
+    if (drumIdx === 2) return { buf: cycle(d.closedHats), gain: 0.55 };  // CLOSED HAT
+    if (drumIdx === 3) return { buf: cycle(d.toms),       gain: 0.7  };  // TOM (hi/mid)
+    if (drumIdx === 4) return { buf: cycle(d.openHats),   gain: 0.55 };  // OPEN HAT
+    if (drumIdx === 5) return { buf: cycle(d.tomsLo),     gain: 0.85 };  // TOM LO (bass voice)
+    return null;
+  }
+
+  // ============================================================
+  // PER-STAGE MUSIC: pick guitar loop, set BPM, optionally start full drum loop (Phase 2)
+  // ============================================================
+  function currentGuitarSlotIdx(stage) {
+    const n = samples.guitarLoops.length;
+    return n ? ((stage - 1) % n + n) % n : -1;
+  }
+  function currentDrumLoopSlotIdx(stage) {
+    const n = samples.drumLoops.length;
+    return n ? ((stage - 21) % n + n) % n : -1;
+  }
+  function stopMusicSources() {
+    for (const k of Object.keys(playingSrc)) {
+      const node = playingSrc[k];
+      if (node) { try { node.src.stop(); } catch {} }
+      playingSrc[k] = null;
+    }
+  }
+
+  let _settingMusic = false;
+  async function setStageMusic(stage) {
+    if (!audio.ctx || !samples.loaded) return;
+    if (_settingMusic) return;
+    _settingMusic = true;
+    try {
+      const gIdx = currentGuitarSlotIdx(stage);
+      const gSlot = (gIdx >= 0) ? await ensureGuitarLoop(gIdx) : null;
+      if (!gSlot || !gSlot.buffer) return;
+      stopMusicSources();
+      // Re-tempo the BEAT scheduler to match the loop
+      restartBeatAtBpm(gSlot.bpm);
+      const startAt = BEAT.startTime;
+      // Guitar sits underneath; drums on top
+      playingSrc.guitar = playSampleBuffer(gSlot.buffer, startAt, 0.42, { loop: true });
+      // Phase 2: full punk drum loop layered under everything
+      if (state.phase2) {
+        const dIdx = currentDrumLoopSlotIdx(stage);
+        const dSlot = (dIdx >= 0) ? await ensureDrumLoop(dIdx) : null;
+        if (dSlot && dSlot.buffer) {
+          // Pitch-shift loop to match guitar BPM (preserves timing, slightly pitches the drums)
+          const rate = gSlot.bpm / dSlot.bpm;
+          playingSrc.fullDrum = playSampleBuffer(dSlot.buffer, startAt, 0.78, { loop: true, playbackRate: rate });
+        }
+      }
+    } finally {
+      _settingMusic = false;
+    }
+  }
+
+  function restartBeatAtBpm(bpm) {
+    if (!audio.ctx) return;
+    BEAT.bpm = bpm;
+    BEAT.stepDuration = (60 / bpm) / 4;
+    BEAT.startTime = audio.ctx.currentTime + 0.1;
+    BEAT.nextStep = 0;
+    if (!BEAT.schedulerInterval) BEAT.schedulerInterval = setInterval(beatTick, 25);
+  }
+
+  // ============================================================
+  // PHASE 2 (level 21+) — full drum loop backing, balls reset, harder squeeze
+  // ============================================================
+  function enterPhase2() {
+    if (state.phase2) return;
+    state.phase2 = true;
+    // Drop balls back to 1: multi-ball must be re-purchased to bring layered drums back
+    state.multiballLevel = 0;
+    syncBallCount(); // trims to 1 (preserves the survivor ball)
+    // Difficulty bump: ring squeeze accelerates, spike spawn floor lowered
+    for (const r of state.rings) {
+      r.shrinkRate = (r.shrinkRate || CONFIG.baseShrinkRate) * 1.5;
+    }
+    showToast('PHASE 2 · LIVE LOOPS');
+    sndStageUp();
+    setStageMusic(state.stage);
+  }
+
+  // ============================================================
+  // SAMPLE PACK LOADER — point at any producer pack folder, auto-categorize, hot-swap audio
+  // ============================================================
+  const packState = {
+    name: 'MOONBOY · Punk Live (bundled)',
+    isCustom: false,
+    dirHandle: null,
+    scanning: false,
+  };
+
+  // Filename-pattern rules. Order matters: more specific first (open hat before plain hat,
+  // tom-lo before tom, kick before bass to handle "bass drum"/"BD").
+  const CATEGORY_RULES = [
+    { cat: 'kick',      re: /(?:^|[\s_\-/(])kicks?(?:[\s_\-/.)]|$)|bass\s*drum|\bbd\b/ },
+    { cat: 'snare',     re: /(?:^|[\s_\-/(])snares?(?:[\s_\-/.)]|$)|\bsd\b|\bclap\b/ },
+    { cat: 'openHat',   re: /open[\s_\-]?hat|open[\s_\-]?hh|\bohh\b/ },
+    { cat: 'closedHat', re: /closed[\s_\-]?hat|closed[\s_\-]?hh|\bchh\b|\bhi[\s_\-]?hat\b|(?:^|[\s_\-/(])hats?(?:[\s_\-/.)]|$)/ },
+    { cat: 'tomLo',     re: /tom[^a-z]*\b(lo|low|sub|deep|floor)\b|\b(lo|low|sub|floor)[^a-z]*tom/ },
+    { cat: 'tom',       re: /\btoms?\b/ },
+    { cat: 'crash',     re: /\bcrash\b|\bcymbal\b|\bride\b/ },
+    { cat: 'perc',      re: /\bperc(?:ussion)?\b|shaker|tambour|bongo|conga|cowbell|stick|\brim\b|sleigh/ },
+    { cat: 'bass',      re: /\b(bass|sub|808)\b/ },
+  ];
+  const LOOP_RE         = /\bloop\b/;
+  const DRUM_LOOP_HINT  = /\b(drum|drums|beat|breakbeat)\b/;
+  const MELODIC_HINT    = /\b(guitar|melody|melodic|lead|synth|piano|key|keys|pad|pluck|riff|chord|arp|bell|brass|flute|strings)\b/;
+  const AUDIO_EXT_RE    = /\.(wav|mp3|ogg|flac|m4a|aiff|aif)$/i;
+
+  function parsePackBPM(s)  { const m = s.match(/(\d{2,3})\s*BPM/i);                                   return m ? parseInt(m[1], 10) : null; }
+  function parsePackKey(s)  { const m = s.match(/\b([A-G][#b]?)\s*(maj|min|m)\b/i);
+    if (!m) return null;
+    const note = m[1].toUpperCase().replace('B', 'b').replace(/^([A-G])b$/, '$1b');
+    const mode = m[2].toLowerCase();
+    return note + (mode === 'maj' ? 'maj' : 'min');
+  }
+  function parsePackIdx(s)  { const m = s.match(/(\d+)/);                                              return m ? parseInt(m[1], 10) : 0; }
+  function categorizeFile(haystack) {
+    const lc = haystack.toLowerCase();
+    for (const rule of CATEGORY_RULES) {
+      if (rule.re.test(lc)) return rule.cat;
+    }
+    return null;
+  }
+
+  // Walk a FileSystemDirectoryHandle recursively, yielding audio entries.
+  async function* walkDirHandle(dirHandle, prefix = '') {
+    for await (const entry of dirHandle.values()) {
+      const path = prefix + entry.name;
+      if (entry.kind === 'file' && AUDIO_EXT_RE.test(entry.name)) {
+        yield { name: entry.name, path, getFile: () => entry.getFile() };
+      } else if (entry.kind === 'directory') {
+        yield* walkDirHandle(entry, path + '/');
+      }
+    }
+  }
+
+  // Convert a non-Chromium <input webkitdirectory> FileList into the same entry shape.
+  function entriesFromFileList(files) {
+    const out = [];
+    for (const f of files) {
+      if (!AUDIO_EXT_RE.test(f.name)) continue;
+      out.push({ name: f.name, path: f.webkitRelativePath || f.name, getFile: async () => f });
+    }
+    return out;
+  }
+  function packNameFromFileList(files) {
+    for (const f of files) {
+      const rp = f.webkitRelativePath || '';
+      const slash = rp.indexOf('/');
+      if (slash > 0) return rp.slice(0, slash);
+    }
+    return 'Custom Pack';
+  }
+
+  // Categorize a list of entries into a pack scan result (counts + lazy slots).
+  function scanEntries(entries, packName) {
+    const r = {
+      name: packName,
+      drums: { kicks: [], snares: [], closedHats: [], openHats: [], toms: [], tomsLo: [], crashes: [] },
+      perc: [], bass: [],
+      guitarLoops: [], drumLoops: [],
+      counts: {},
+    };
+    for (const ent of entries) {
+      const isLoop = LOOP_RE.test(ent.name.toLowerCase()) || LOOP_RE.test(ent.path.toLowerCase());
+      const bpm    = parsePackBPM(ent.name) || parsePackBPM(ent.path);
+      const key    = parsePackKey(ent.name);
+      const idx    = parsePackIdx(ent.name);
+      if (isLoop) {
+        const lc = (ent.name + ' ' + ent.path).toLowerCase();
+        const drumish   = DRUM_LOOP_HINT.test(lc);
+        const melodish  = MELODIC_HINT.test(lc);
+        if (drumish && !melodish) r.drumLoops.push({ name: ent.name, _getFile: ent.getFile, bpm, key, idx });
+        else                       r.guitarLoops.push({ name: ent.name, _getFile: ent.getFile, bpm, key, idx });
+        continue;
+      }
+      const cat = categorizeFile(ent.name) || categorizeFile(ent.path);
+      if (cat === 'kick')       r.drums.kicks.push(ent);
+      else if (cat === 'snare') r.drums.snares.push(ent);
+      else if (cat === 'closedHat') r.drums.closedHats.push(ent);
+      else if (cat === 'openHat')   r.drums.openHats.push(ent);
+      else if (cat === 'tomLo') r.drums.tomsLo.push(ent);
+      else if (cat === 'tom')   r.drums.toms.push(ent);
+      else if (cat === 'crash') r.drums.crashes.push(ent);
+      else if (cat === 'perc')  r.perc.push(ent);
+      else if (cat === 'bass')  r.bass.push(ent);
+    }
+    // Sort loops by parsed index so cycling per stage is stable
+    r.guitarLoops.sort((a,b) => (a.idx||0) - (b.idx||0));
+    r.drumLoops.sort((a,b) => (a.idx||0) - (b.idx||0));
+    r.counts = {
+      kicks: r.drums.kicks.length, snares: r.drums.snares.length,
+      closedHats: r.drums.closedHats.length, openHats: r.drums.openHats.length,
+      toms: r.drums.toms.length + r.drums.tomsLo.length,
+      crashes: r.drums.crashes.length,
+      perc: r.perc.length, bass: r.bass.length,
+      guitarLoops: r.guitarLoops.length, drumLoops: r.drumLoops.length,
+    };
+    return r;
+  }
+
+  // Decode all drum one-shots eagerly (~7-30MB total), keep loops lazy. Hot-swaps `samples`.
+  async function applyScannedPack(scan) {
+    if (!audio.ctx) initAudio();
+    if (!audio.ctx) return;
+    packState.name = scan.name;
+    packState.isCustom = true;
+    $('packName').textContent = scan.name.toUpperCase();
+
+    const newDrums = { kicks: [], snares: [], closedHats: [], openHats: [], toms: [], tomsLo: [], crashes: [] };
+    // Enrich tom bucket: hi/mid go in toms, lo in tomsLo (keeps the bass-voice slot 5 distinct)
+    const allEntries = [];
+    for (const cat of Object.keys(newDrums)) {
+      for (const ent of scan.drums[cat]) allEntries.push({ cat, ent });
+    }
+    $('packProgress').classList.add('active');
+    const fill = $('packProgressFill'); fill.style.width = '0%';
+    let done = 0;
+    await Promise.all(allEntries.map(async ({cat, ent}) => {
+      try {
+        const file = await ent.getFile();
+        const ab = await file.arrayBuffer();
+        const buf = await audio.ctx.decodeAudioData(ab);
+        newDrums[cat].push(buf);
+      } catch (e) { console.warn('decode failed', ent.name, e); }
+      done++;
+      if (allEntries.length) fill.style.width = Math.round(done / allEntries.length * 100) + '%';
+    }));
+
+    samples.drums       = newDrums;
+    samples.guitarLoops = scan.guitarLoops.map(g => ({ file: g.name, bpm: g.bpm || 120, key: g.key, idx: g.idx, buffer: null, _getFile: g._getFile }));
+    samples.drumLoops   = scan.drumLoops.map(d   => ({ file: d.name, bpm: d.bpm || 120, idx: d.idx,            buffer: null, _getFile: d._getFile }));
+    samples.loaded = true;
+
+    stopMusicSources();
+    await setStageMusic(state.stage);
+    $('packProgress').classList.remove('active');
+    refreshPackUI();
+    showToast('PACK LOADED');
+  }
+
+  // Re-shuffle drum + loop arrays so the next cycle picks fresh variants. Instant new feel.
+  function rerollKit() {
+    const shuffle = (arr) => { for (let i = arr.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [arr[i], arr[j]] = [arr[j], arr[i]]; } };
+    if (samples.drums) for (const cat of Object.keys(samples.drums)) shuffle(samples.drums[cat]);
+    if (Array.isArray(samples.guitarLoops)) shuffle(samples.guitarLoops);
+    if (Array.isArray(samples.drumLoops))   shuffle(samples.drumLoops);
+    stopMusicSources();
+    setStageMusic(state.stage);
+    showToast('KIT RE-ROLLED');
+    refreshPackUI();
+  }
+
+  // ---- IndexedDB persistence for FileSystemDirectoryHandle ----
+  const PACK_DB = 'idle-ball-pack', PACK_STORE = 'handles';
+  function openPackDB() {
+    return new Promise((resolve, reject) => {
+      const r = indexedDB.open(PACK_DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(PACK_STORE);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror   = () => reject(r.error);
+    });
+  }
+  async function savePackHandle(handle) {
+    try { const db = await openPackDB(); await new Promise((res, rej) => { const tx = db.transaction(PACK_STORE, 'readwrite'); tx.objectStore(PACK_STORE).put(handle, 'last'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch (e) { /* ignore */ }
+  }
+  async function loadPackHandle() {
+    try { const db = await openPackDB(); return await new Promise((res, rej) => { const tx = db.transaction(PACK_STORE, 'readonly'); const r = tx.objectStore(PACK_STORE).get('last'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); } catch (e) { return null; }
+  }
+  async function clearPackHandle() {
+    try { const db = await openPackDB(); await new Promise((res, rej) => { const tx = db.transaction(PACK_STORE, 'readwrite'); tx.objectStore(PACK_STORE).delete('last'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch {}
+  }
+
+  // ---- Top-level pack-load orchestration ----
+  async function loadPackFromDirectoryHandle(dirHandle) {
+    if (packState.scanning) return;
+    packState.scanning = true;
+    try {
+      const entries = [];
+      for await (const ent of walkDirHandle(dirHandle)) entries.push(ent);
+      const scan = scanEntries(entries, dirHandle.name || 'Custom Pack');
+      await applyScannedPack(scan);
+      packState.dirHandle = dirHandle;
+      savePackHandle(dirHandle);
+    } catch (e) {
+      console.warn('pack load failed', e);
+      showToast('PACK LOAD FAILED');
+    } finally { packState.scanning = false; }
+  }
+  async function loadPackFromFileList(files) {
+    if (!files || !files.length) return;
+    packState.scanning = true;
+    try {
+      const entries = entriesFromFileList(files);
+      const scan = scanEntries(entries, packNameFromFileList(files));
+      await applyScannedPack(scan);
+      // Can't persist a FileList; user will need to re-pick next session
+    } catch (e) {
+      console.warn('pack load failed', e);
+      showToast('PACK LOAD FAILED');
+    } finally { packState.scanning = false; }
+  }
+  async function pickPackDirectory() {
+    if ('showDirectoryPicker' in window) {
+      try {
+        const handle = await window.showDirectoryPicker({ id: 'idle-ball-pack' });
+        await loadPackFromDirectoryHandle(handle);
+      } catch (e) { /* user cancelled */ }
+    } else {
+      // Non-Chromium fallback: file input with webkitdirectory
+      $('packFileInput').click();
+    }
+  }
+
+  function refreshPackUI() {
+    $('packBpm').textContent   = playingSrc.guitar && samples.guitarLoops[currentGuitarSlotIdx(state.stage)] ? (samples.guitarLoops[currentGuitarSlotIdx(state.stage)].bpm || '—') : (BEAT.bpm || 128);
+    $('packStage').textContent = state.stage;
+    if (samples.drums) {
+      $('psKicks').textContent      = samples.drums.kicks.length;
+      $('psSnares').textContent     = samples.drums.snares.length;
+      $('psClosedHats').textContent = samples.drums.closedHats.length;
+      $('psOpenHats').textContent   = samples.drums.openHats.length;
+      $('psToms').textContent       = (samples.drums.toms.length + samples.drums.tomsLo.length);
+      $('psCrashes').textContent    = samples.drums.crashes.length;
+      $('psPerc').textContent       = '—';
+      $('psBass').textContent       = samples.drums.tomsLo.length;
+      $('psGuitar').textContent     = samples.guitarLoops.length;
+      $('psDrumLoops').textContent  = samples.drumLoops.length;
+    }
+  }
+  async function restoreLastPackIfPossible() {
+    try {
+      const handle = await loadPackHandle();
+      if (!handle) return;
+      const perm = await handle.queryPermission({ mode: 'read' });
+      if (perm === 'granted') {
+        await loadPackFromDirectoryHandle(handle);
+      } else {
+        // Show toast with hint; user must click PACK button to re-grant
+        showToast('CLICK PACK TO RECONNECT');
+      }
+    } catch {}
+  }
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  const state = {
+    cash: 50, totalEarned: 0, gems: 595, keys: 2,
+    stage: 1, level: 1,
+    damageLevel: 1, cashLevel: 1,
+    velocityLevel: 0, multiballLevel: 0, critLevel: 0, slowLevel: 0, pierceLevel: 0,
+    rings: [],
+    activeRingIdx: 0,
+    ringsPerStage: 5,
+    stageShape: SHAPES[0],
+    balls: [],
+    spikes: [],
+    trackers: [],
+    sparks: [],
+    fragments: [],
+    recentHits: [],
+    spikeSpawnTimer: CONFIG.enemySpawnInterval,
+    trackerSpawnTimer: CONFIG.trackerSpawnInterval,
+    boostUntil: 0,
+    cameraShake: 0,
+    cameraSwayT: 0,
+    tunnelPulse: 0,
+    lastSave: 0,
+    gameOver: false,
+    gameOverTime: 0,
+    gameOverShown: false,
+    phase2: false,
+  };
+
+  // ============================================================
+  // FORMULAS
+  // ============================================================
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmt = n => {
+    if (n < 1000) return Math.floor(n).toString();
+    if (n < 1e6)  return (n / 1e3).toFixed(n < 1e4 ? 2 : 1) + 'K';
+    if (n < 1e9)  return (n / 1e6).toFixed(n < 1e7 ? 2 : 1) + 'M';
+    if (n < 1e12) return (n / 1e9).toFixed(n < 1e10 ? 2 : 1) + 'B';
+    return (n / 1e12).toFixed(2) + 'T';
+  };
+
+  function damagePerHit() {
+    const base  = state.damageLevel * Math.pow(1.18, state.damageLevel - 1);
+    const bonus = Math.pow(2, Math.floor(state.damageLevel / 10));
+    return base * bonus;
+  }
+  function dpsValue() {
+    const cutoff = performance.now() - 1000;
+    while (state.recentHits.length && state.recentHits[0].time < cutoff) state.recentHits.shift();
+    return state.recentHits.reduce((s, h) => s + h.damage, 0);
+  }
+  function cashPerSec() {
+    const base  = state.cashLevel * Math.pow(1.16, state.cashLevel - 1);
+    const bonus = Math.pow(2, Math.floor(state.cashLevel / 10));
+    return base * bonus;
+  }
+  const damageUpgradeCost = () => Math.floor(8  * Math.pow(1.45, state.damageLevel - 1));
+  const cashUpgradeCost   = () => Math.floor(10 * Math.pow(1.5,  state.cashLevel  - 1));
+
+  const velocityMult = () => 1 + state.velocityLevel * 0.10;
+  const velocityCost = () => Math.floor(20 * Math.pow(1.6, state.velocityLevel));
+  const ballSpeed    = () => CONFIG.baseBallSpeed * velocityMult();
+
+  const ballCount      = () => Math.min(8, 1 + state.multiballLevel);
+  const multiballCost  = () => Math.floor(120 * Math.pow(2.6, state.multiballLevel));
+
+  const CRIT_MULT = 5;
+  const critChance = () => Math.min(0.6, state.critLevel * 0.025);
+  const critCost   = () => Math.floor(35 * Math.pow(1.7, state.critLevel));
+
+  const slowMult = () => Math.max(0.25, 1 - state.slowLevel * 0.05);
+  const slowCost = () => Math.floor(60 * Math.pow(1.85, state.slowLevel));
+
+  const PIERCE_RATIO = 0.35;
+  const pierceChance = () => Math.min(0.8, state.pierceLevel * 0.04);
+  const pierceCost   = () => Math.floor(140 * Math.pow(2.0, state.pierceLevel));
+
+  function ringHp(stage, ringIdx) {
+    const stageMult = Math.pow(1.35, stage - 1);
+    const ringMult  = 1 + ringIdx * 0.55;
+    return Math.ceil(14 * stageMult * ringMult);
+  }
+  function stageReward(stage) { return Math.ceil(15 * Math.pow(1.5, stage - 1)); }
+  function stageProgress() {
+    const total = state.rings.length;
+    if (!total) return 0;
+    return state.rings.filter(r => r.shattered).length / total;
+  }
+  function threatLevel() {
+    // Active-ring squeeze threat â how close the inner wall is to crushing the ball
+    const a = state.rings[state.activeRingIdx];
+    if (!a || a.shattered || a.currentRadius == null) return 0;
+    const span = Math.max(0.001, a.radius - CONFIG.minActiveRadius);
+    return clamp(1 - (a.currentRadius - CONFIG.minActiveRadius) / span, 0, 1);
+  }
+
+  // ============================================================
+  // THREE.JS SETUP
+  // ============================================================
+  let scene, camera, renderer;
+  const meshes = { rings: [], stars: null, streaks: null, ambient: null, dirLight: null, tunnel: null };
+
+  // Reusable glow texture (radial gradient on a canvas)
+  function makeGlowTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0,   'rgba(255,255,255,1)');
+    g.addColorStop(.35, 'rgba(255,255,255,.5)');
+    g.addColorStop(1,   'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+  }
+  let GLOW_TEX = null;
+  let ENV_MAP = null;
+
+  // Procedural cubemap â six painted canvases form a tunnel-colored environment
+  // (cyan up top, magenta floor, deep violet sides) so the glass rings have
+  // something rich to reflect and refract.
+  function makeEnvCubemap() {
+    const size = 256;
+    const faces = [];
+    // Three.js cube face order: +X, -X, +Y, -Y, +Z, -Z
+    const faceData = [
+      { top: '#1a3050', mid: '#5a2090', bot: '#cc2080', name: 'pX' },
+      { top: '#1a3050', mid: '#5a2090', bot: '#cc2080', name: 'nX' },
+      { top: '#3affff', mid: '#3a8fff', bot: '#5a2090', name: 'pY' }, // top: cyan
+      { top: '#5a2090', mid: '#cc2080', bot: '#ff5ad6', name: 'nY' }, // bottom: magenta
+      { top: '#1a3050', mid: '#5a2090', bot: '#cc2080', name: 'pZ' },
+      { top: '#1a3050', mid: '#5a2090', bot: '#cc2080', name: 'nZ' },
+    ];
+    for (const f of faceData) {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const x = c.getContext('2d');
+      const grad = x.createLinearGradient(0, 0, 0, size);
+      grad.addColorStop(0,   f.top);
+      grad.addColorStop(0.5, f.mid);
+      grad.addColorStop(1,   f.bot);
+      x.fillStyle = grad;
+      x.fillRect(0, 0, size, size);
+      // Sparkle highlights so reflections have detail to catch
+      for (let i = 0; i < 10; i++) {
+        const sx = Math.random() * size, sy = Math.random() * size;
+        const sg = x.createRadialGradient(sx, sy, 0, sx, sy, 18 + Math.random() * 22);
+        sg.addColorStop(0, 'rgba(255,255,255,0.8)');
+        sg.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = sg;
+        x.fillRect(0, 0, size, size);
+      }
+      faces.push(c);
+    }
+    const tex = new THREE.CubeTexture(faces);
+    tex.needsUpdate = true;
+    tex.encoding = THREE.sRGBEncoding;
+    tex.mapping = THREE.CubeReflectionMapping;
+    return tex;
+  }
+
+  function initThree() {
+    GLOW_TEX = makeGlowTexture();
+    ENV_MAP  = makeEnvCubemap();
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x05060c, 0.0095);
+    scene.environment = ENV_MAP; // PBR mats auto-pick this up for reflections
+
+    const w = window.innerWidth, h = window.innerHeight;
+    camera = new THREE.PerspectiveCamera(CONFIG.fov, w / h, 0.1, 600);
+    camera.position.set(0, 0, CONFIG.cameraZ);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({
+      canvas: document.getElementById('game'),
+      antialias: true, alpha: false, powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(w, h);
+    renderer.setClearColor(0x05060c, 1);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.25;
+
+    // Lighting
+    meshes.ambient = new THREE.AmbientLight(0x445588, 0.35);
+    scene.add(meshes.ambient);
+    meshes.dirLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+    meshes.dirLight.position.set(20, 30, 50);
+    scene.add(meshes.dirLight);
+
+    // Background streaks (line segments rushing toward camera)
+    meshes.streaks = createStreaks(CONFIG.streakCount);
+    scene.add(meshes.streaks);
+
+    // Distant stars
+    meshes.stars = createStars(CONFIG.starCount);
+    scene.add(meshes.stars);
+
+    // Beat-Saber-style tunnel: longitudinal rails + scrolling cross-section rings
+    meshes.tunnel = createTunnel();
+    scene.add(meshes.tunnel);
+  }
+
+  function createStars(count) {
+    const geom = new THREE.BufferGeometry();
+    const pos  = new Float32Array(count * 3);
+    const col  = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i*3]   = (Math.random() - .5) * 240;
+      pos[i*3+1] = (Math.random() - .5) * 240;
+      pos[i*3+2] = -Math.random() * 380 - 30;
+      const c = new THREE.Color().setHSL(.55 + Math.random() * .2, .7, .5 + Math.random() * .4);
+      col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+    }
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geom.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 1.6, vertexColors: true, transparent: true, opacity: .9,
+      blending: THREE.AdditiveBlending, sizeAttenuation: true, depthWrite: false,
+    });
+    return new THREE.Points(geom, mat);
+  }
+
+  // Each "streak" is a line segment from (x,y,z-len) â (x,y,z), forming a short streak
+  function createStreaks(count) {
+    const geom = new THREE.BufferGeometry();
+    const pos  = new Float32Array(count * 6);
+    const col  = new Float32Array(count * 6);
+    const data = []; // per-streak metadata
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = CONFIG.tunnelRadius + 8 + Math.random() * 110; // outside tunnel walls only
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      const z = -Math.random() * 350;
+      const len = 1.5 + Math.random() * 5;
+      pos[i*6]   = x; pos[i*6+1] = y; pos[i*6+2] = z;
+      pos[i*6+3] = x; pos[i*6+4] = y; pos[i*6+5] = z - len;
+      const c = new THREE.Color().setHSL(.55 + Math.random() * .15, .8, .55 + Math.random() * .35);
+      col[i*6]   = c.r; col[i*6+1] = c.g; col[i*6+2] = c.b;
+      col[i*6+3] = c.r * .15; col[i*6+4] = c.g * .15; col[i*6+5] = c.b * .15;
+      data.push({ baseLen: len });
+    }
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geom.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: .85,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const obj = new THREE.LineSegments(geom, mat);
+    obj.userData.data = data;
+    return obj;
+  }
+
+  function updateBackground(dt) {
+    // Stars drift toward camera slowly
+    const sp = meshes.stars.geometry.attributes.position;
+    const starSpeed = 6 + state.stage * .4;
+    for (let i = 0; i < sp.count; i++) {
+      let z = sp.array[i*3+2] + starSpeed * dt;
+      if (z > CONFIG.cameraZ + 5) {
+        z = -380 - Math.random() * 50;
+        sp.array[i*3]   = (Math.random() - .5) * 240;
+        sp.array[i*3+1] = (Math.random() - .5) * 240;
+      }
+      sp.array[i*3+2] = z;
+    }
+    sp.needsUpdate = true;
+
+    // Streaks rush forward, stretched by current speed (velocity upgrade boosts streak length)
+    const stp = meshes.streaks.geometry.attributes.position;
+    const streakSpeed = 22 + state.stage * 1.2 + state.velocityLevel * 1.5;
+    const stretchMul  = 1 + state.velocityLevel * 0.08 + (performance.now() < state.boostUntil ? 1.2 : 0);
+    const data = meshes.streaks.userData.data;
+    for (let i = 0; i < stp.count / 2; i++) {
+      // The two endpoints share x,y
+      const idxHead = i * 6 + 2;
+      const idxTail = i * 6 + 5;
+      let zh = stp.array[idxHead] + streakSpeed * dt;
+      const baseLen = data[i].baseLen * stretchMul;
+      if (zh > CONFIG.cameraZ + 8) {
+        // recycle behind, outside the tunnel walls
+        const a = Math.random() * Math.PI * 2;
+        const r = CONFIG.tunnelRadius + 8 + Math.random() * 110;
+        const x = Math.cos(a) * r, y = Math.sin(a) * r;
+        const z = -350 - Math.random() * 50;
+        stp.array[i*6]   = x; stp.array[i*6+1] = y; stp.array[i*6+2] = z;
+        stp.array[i*6+3] = x; stp.array[i*6+4] = y; stp.array[i*6+5] = z - baseLen;
+      } else {
+        stp.array[idxHead] = zh;
+        stp.array[idxTail] = zh - baseLen;
+      }
+    }
+    stp.needsUpdate = true;
+  }
+
+  // ============================================================
+  // TUNNEL (Beat-Saber-style corridor)
+  // ============================================================
+  function createTunnel() {
+    const grp = new THREE.Group();
+    const R = CONFIG.tunnelRadius;
+    const N = CONFIG.tunnelSides;
+    const L = CONFIG.tunnelLength;
+    const Z0 = CONFIG.tunnelStartZ;
+    const offset = Math.PI / N; // rotate so the bottom is a flat edge (floor), not a corner
+
+    // Longitudinal rails: one line from front to back at each polygon vertex
+    const railGeom = new THREE.BufferGeometry();
+    const railPos  = new Float32Array(N * 2 * 3);
+    const railCol  = new Float32Array(N * 2 * 3);
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + offset;
+      const x = Math.cos(a) * R, y = Math.sin(a) * R;
+      railPos[i*6+0] = x; railPos[i*6+1] = y; railPos[i*6+2] = Z0;
+      railPos[i*6+3] = x; railPos[i*6+4] = y; railPos[i*6+5] = Z0 - L;
+      // Vertical-position-based color: top of tunnel = cyan, bottom = hot pink (Beat-Saber palette)
+      const t01 = (Math.sin(a) + 1) * 0.5; // 0 at bottom â 1 at top
+      const hue = 0.92 - t01 * 0.37;       // 0.92 (magenta) â 0.55 (cyan)
+      const c = new THREE.Color().setHSL(hue, 0.9, 0.6);
+      for (let k = 0; k < 6; k += 3) {
+        railCol[i*6+k]   = c.r;
+        railCol[i*6+k+1] = c.g;
+        railCol[i*6+k+2] = c.b;
+      }
+    }
+    railGeom.setAttribute('position', new THREE.BufferAttribute(railPos, 3));
+    railGeom.setAttribute('color',    new THREE.BufferAttribute(railCol, 3));
+    const rails = new THREE.LineSegments(railGeom, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.85,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    grp.add(rails);
+
+    // Floor accent: thicker pair of bright rails along the bottom edge of the tunnel
+    // (matches the two bottom corners â i = 5 and i = 6 with offset above point downward)
+    const floorAccent = new THREE.LineSegments(
+      (() => {
+        const g = new THREE.BufferGeometry();
+        const positions = new Float32Array(2 * 2 * 3);
+        const indices = [5, 6]; // the two bottom rails
+        for (let k = 0; k < indices.length; k++) {
+          const i = indices[k];
+          const a = (i / N) * Math.PI * 2 + offset;
+          const x = Math.cos(a) * R, y = Math.sin(a) * R;
+          positions[k*6+0] = x; positions[k*6+1] = y; positions[k*6+2] = Z0;
+          positions[k*6+3] = x; positions[k*6+4] = y; positions[k*6+5] = Z0 - L;
+        }
+        g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        return g;
+      })(),
+      new THREE.LineBasicMaterial({
+        color: 0xff5ad6, transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    grp.add(floorAccent);
+
+    // Cross-section rings â these are the "beat markers" flowing toward camera
+    const cross = [];
+    const spacing = L / CONFIG.tunnelCrossCount;
+    for (let i = 0; i < CONFIG.tunnelCrossCount; i++) {
+      const seg = new Float32Array((N + 1) * 3);
+      for (let j = 0; j <= N; j++) {
+        const a = (j / N) * Math.PI * 2 + offset;
+        seg[j*3+0] = Math.cos(a) * R;
+        seg[j*3+1] = Math.sin(a) * R;
+        seg[j*3+2] = 0;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(seg, 3));
+      const isAccent = i % 4 === 0; // every 4th ring = bright accent (the "downbeat")
+      const baseColor = isAccent ? 0xb387ff : 0x6fdcff;
+      const m = new THREE.LineBasicMaterial({
+        color: baseColor, transparent: true,
+        opacity: isAccent ? 0.85 : 0.45,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const ring = new THREE.Line(g, m);
+      ring.position.z = Z0 - i * spacing;
+      ring.userData.isAccent = isAccent;
+      ring.userData.baseColor = new THREE.Color(baseColor);
+      grp.add(ring);
+      cross.push(ring);
+    }
+
+    grp.userData = { rails, floorAccent, cross, R, N, L, Z0, spacing };
+    return grp;
+  }
+
+  function updateTunnel(dt, now) {
+    const t = meshes.tunnel.userData;
+    const boosted = now < state.boostUntil;
+    const speed = (16 + state.stage * 1.6 + state.velocityLevel * 1.4) * (boosted ? 1.7 : 1);
+
+    // Decay tunnel pulse (set on ring damage hits)
+    state.tunnelPulse = Math.max(0, state.tunnelPulse - dt * 3);
+    const pulse = state.tunnelPulse;
+
+    for (const ring of t.cross) {
+      ring.position.z += speed * dt;
+      // Recycle when past the camera mouth
+      if (ring.position.z > t.Z0) ring.position.z -= t.L;
+
+      // Distance-based fade: brightest when near camera (high z), fade into the far end
+      const distFromCam = CONFIG.cameraZ - ring.position.z;
+      const fade = clamp(1 - distFromCam / 220, 0.05, 1.0);
+
+      const baseOp = ring.userData.isAccent ? 0.85 : 0.45;
+      ring.material.opacity = (baseOp * fade) + pulse * 0.4;
+
+      // Pulse color shift toward white-hot during hit pulses
+      if (pulse > 0.01) {
+        ring.material.color.copy(ring.userData.baseColor).lerp(new THREE.Color(0xffffff), pulse * 0.6);
+      } else {
+        ring.material.color.copy(ring.userData.baseColor);
+      }
+    }
+
+    // Rails brighten on pulse
+    t.rails.material.opacity = 0.85 + pulse * 0.15;
+    t.floorAccent.material.opacity = 0.95;
+  }
+
+  // ============================================================
+  // RING MESHES
+  // ============================================================
+  function createRingMesh(ring) {
+    const sides = (ring.sides && ring.sides >= 3) ? ring.sides : 64;
+    const geom = new THREE.TorusGeometry(ring.radius, 0.7, 14, sides);
+    const baseColor = new THREE.Color().setHSL(ring.hue / 360, 0.95, 0.6);
+    const mat = new THREE.MeshStandardMaterial({
+      color: baseColor,
+      emissive: baseColor.clone(),
+      emissiveIntensity: 1.8,     // bright neon glow
+      metalness: 0.4,
+      roughness: 0.25,
+      transparent: false,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.z = ring.z;
+
+    // BRIGHT WIREFRAME EDGES â defines the polygon shape clearly (triangle/hex/square/etc)
+    const edgeGeom = new THREE.EdgesGeometry(geom, 25);
+    const edgeMat = new THREE.LineBasicMaterial({
+      color: baseColor.clone().multiplyScalar(2.4),
+      transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const edges = new THREE.LineSegments(edgeGeom, edgeMat);
+    mesh.add(edges);
+    mesh.userData.edges = edges;
+
+    // Halo plane behind â outer bloom
+    const haloGeom = new THREE.PlaneGeometry(ring.radius * 2.6, ring.radius * 2.6);
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: GLOW_TEX,
+      color: baseColor.clone(),
+      transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const halo = new THREE.Mesh(haloGeom, haloMat);
+    halo.position.z = -0.6;
+    mesh.add(halo);
+    mesh.userData.halo = halo;
+
+    return mesh;
+  }
+
+  function updateRingMesh(ring, mesh, isActive) {
+    mesh.position.z = ring.z;
+    mesh.rotation.z = ring.rotation;
+
+    // Apply visual shrink â scale uniformly so polygon shape stays readable
+    if (ring.currentRadius != null && ring.radius > 0) {
+      const s = Math.max(0.001, ring.currentRadius / ring.radius);
+      mesh.scale.set(s, s, s);
+    }
+
+    // Damage tint shifts toward red-orange as HP drops on active ring;
+    // squeeze danger also pushes color hotter
+    const hpPct = clamp(ring.hp / ring.maxHp, 0, 1);
+    let squeezePct = 0;
+    if (isActive && ring.currentRadius != null) {
+      const span = Math.max(0.001, ring.radius - CONFIG.minActiveRadius);
+      squeezePct = clamp(1 - (ring.currentRadius - CONFIG.minActiveRadius) / span, 0, 1);
+    }
+    const dangerPct = Math.max(1 - hpPct, squeezePct);
+    const baseHue = ring.hue;
+    const targetHue = isActive ? lerp(baseHue, 12, dangerPct) : baseHue;
+    const col = new THREE.Color().setHSL(targetHue / 360, 0.95, 0.6);
+    mesh.material.color.copy(col);
+    mesh.material.emissive.copy(col);
+    // Bright neon emissive â active blazes hotter as squeeze tightens
+    mesh.material.emissiveIntensity = isActive ? (1.8 + dangerPct * 1.6) : 1.5;
+
+    // Wireframe edges follow color and brighten with danger
+    if (mesh.userData.edges) {
+      const edgeCol = col.clone().multiplyScalar(2.4 + dangerPct * 1.6);
+      mesh.userData.edges.material.color.copy(edgeCol);
+      mesh.userData.edges.material.opacity = isActive ? (0.95) : 0.7;
+    }
+
+    // Halo follows
+    mesh.userData.halo.material.color.copy(col);
+    mesh.userData.halo.material.opacity = isActive ? (0.55 + dangerPct * 0.35) : 0.3;
+
+    // shake
+    if (ring.shaking > 0) {
+      mesh.position.x = (Math.random() - 0.5) * ring.shaking * 0.3;
+      mesh.position.y = (Math.random() - 0.5) * ring.shaking * 0.3;
+      ring.shaking = Math.max(0, ring.shaking - 0.08);
+    } else {
+      mesh.position.x *= 0.85;
+      mesh.position.y *= 0.85;
+    }
+  }
+
+  function disposeMesh(m) {
+    if (!m) return;
+    m.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(mt => mt.dispose());
+        else o.material.dispose();
+      }
+    });
+    if (m.parent) m.parent.remove(m);
+  }
+
+  // ============================================================
+  // BALLS
+  // ============================================================
+  function makeBall(angleOffset = 0) {
+    const ang = Math.random() * Math.PI * 2 + angleOffset;
+    const speed = ballSpeed();
+    const hueShift = Math.random() * 60;
+    const ball = {
+      x: 0, y: 0,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      radius: 0.7,
+      trail: [],
+      hueShift,
+      mesh: null,
+    };
+    ball.mesh = createBallMesh(ball);
+    scene.add(ball.mesh);
+    return ball;
+  }
+
+  function createBallMesh(b) {
+    const grp = new THREE.Group();
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(b.radius, 24, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: new THREE.Color().setHSL((200 + b.hueShift) / 360, .9, .65),
+        emissiveIntensity: 2.0, metalness: .25, roughness: .3,
+      })
+    );
+    grp.add(sphere);
+    // halo plane (always faces camera trick: PlaneGeometry billboarded by camera)
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: GLOW_TEX,
+      color: new THREE.Color().setHSL((200 + b.hueShift) / 360, .85, .65),
+      transparent: true, opacity: .85,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(b.radius * 8, b.radius * 8), haloMat);
+    halo.userData.isBillboard = true;
+    grp.add(halo);
+    grp.userData.halo = halo;
+    grp.userData.sphere = sphere;
+    // local point light for cool reflections off rings
+    const light = new THREE.PointLight(
+      new THREE.Color().setHSL((200 + b.hueShift) / 360, .85, .7),
+      1.2, 18, 2
+    );
+    grp.add(light);
+    grp.userData.light = light;
+
+    // Trail mesh (tube geometry rebuilt per-frame)
+    grp.userData.trailMesh = null;
+    grp.userData.trailMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setHSL((200 + b.hueShift) / 360, .9, .7),
+      transparent: true, opacity: .75,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+
+    return grp;
+  }
+
+  function updateBallMesh(b) {
+    b.mesh.position.set(b.x, b.y, CONFIG.ballZ);
+    // Halo billboard
+    const halo = b.mesh.userData.halo;
+    halo.lookAt(camera.position);
+
+    // Rebuild trail tube every frame
+    rebuildBallTrail(b);
+  }
+
+  function rebuildBallTrail(b) {
+    // Remove old
+    if (b.mesh.userData.trailMesh) {
+      scene.remove(b.mesh.userData.trailMesh);
+      b.mesh.userData.trailMesh.geometry.dispose();
+      b.mesh.userData.trailMesh = null;
+    }
+    if (b.trail.length < 3) return;
+    const points = b.trail.map(p => new THREE.Vector3(p.x, p.y, p.z));
+    try {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, Math.min(40, points.length * 2), b.radius * 0.45, 6, false);
+      const trailMesh = new THREE.Mesh(tubeGeom, b.mesh.userData.trailMat);
+      // taper: opacity increases toward head; we'll bake by varying mesh opacity (simple approach)
+      scene.add(trailMesh);
+      b.mesh.userData.trailMesh = trailMesh;
+    } catch (e) { /* tube build can fail with degenerate curves */ }
+  }
+
+  function spawnBalls() {
+    // dispose any existing
+    for (const b of state.balls) { disposeMesh(b.mesh); if (b.mesh?.userData.trailMesh) disposeMesh(b.mesh.userData.trailMesh); }
+    state.balls = [];
+    const count = ballCount();
+    for (let i = 0; i < count; i++) state.balls.push(makeBall((i / count) * Math.PI * 2));
+  }
+  function syncBallCount() {
+    const target = ballCount();
+    while (state.balls.length < target) state.balls.push(makeBall(Math.random() * Math.PI * 2));
+    while (state.balls.length > target) {
+      const b = state.balls.pop();
+      disposeMesh(b.mesh);
+      if (b.mesh?.userData.trailMesh) disposeMesh(b.mesh.userData.trailMesh);
+    }
+  }
+
+  // 2D collision in the active ring's plane (uses currentRadius so collision tracks the shrink)
+  function checkRingCollision(ring, ball) {
+    const R = (ring.currentRadius != null) ? ring.currentRadius : ring.radius;
+    if (!ring.sides || ring.sides < 3) {
+      const dist = Math.hypot(ball.x, ball.y);
+      const limit = R - ball.radius;
+      if (dist >= limit) {
+        const nx = ball.x / (dist || 1);
+        const ny = ball.y / (dist || 1);
+        return {
+          nx_in: -nx, ny_in: -ny,
+          penetration: dist - limit,
+          hitX: nx * R, hitY: ny * R,
+        };
+      }
+      return null;
+    }
+    const N = ring.sides;
+    const apothem = R * Math.cos(Math.PI / N);
+    let minSigned = Infinity, bestEdge = 0;
+    for (let i = 0; i < N; i++) {
+      const angle = (i + 0.5) * (Math.PI * 2 / N) + ring.rotation - Math.PI / 2;
+      const nx_out = Math.cos(angle), ny_out = Math.sin(angle);
+      const signed = apothem - (ball.x * nx_out + ball.y * ny_out);
+      if (signed < minSigned) { minSigned = signed; bestEdge = i; }
+    }
+    if (minSigned < ball.radius) {
+      const angle = (bestEdge + 0.5) * (Math.PI * 2 / N) + ring.rotation - Math.PI / 2;
+      const nx_out = Math.cos(angle), ny_out = Math.sin(angle);
+      return {
+        nx_in: -nx_out, ny_in: -ny_out,
+        penetration: ball.radius - minSigned,
+        hitX: nx_out * apothem, hitY: ny_out * apothem,
+      };
+    }
+    return null;
+  }
+
+  function reflectBall(ball, hit) {
+    ball.x += hit.nx_in * (hit.penetration + 0.05);
+    ball.y += hit.ny_in * (hit.penetration + 0.05);
+    const dot = ball.vx * hit.nx_in + ball.vy * hit.ny_in;
+    ball.vx -= 2 * dot * hit.nx_in;
+    ball.vy -= 2 * dot * hit.ny_in;
+    const ja = (Math.random() - 0.5) * 0.16;
+    const cs = Math.cos(ja), sn = Math.sin(ja);
+    const nvx = ball.vx * cs - ball.vy * sn;
+    const nvy = ball.vx * sn + ball.vy * cs;
+    ball.vx = nvx; ball.vy = nvy;
+  }
+
+  function applyHitDamage(ring, dmg, hitX, hitY, ballIdx = 0) {
+    ring.hp -= dmg;
+    ring.shaking = 1.0;
+    state.recentHits.push({ time: performance.now(), damage: dmg });
+    spawnHitSparks(hitX, hitY, CONFIG.ballZ, ring.hue);
+    sndBounce(ballIdx);
+    state.cameraShake = Math.min(0.6, state.cameraShake + 0.05);
+    state.tunnelPulse = Math.min(1, state.tunnelPulse + 0.35);
+
+    if (Math.random() < pierceChance()) {
+      const splash = dmg * PIERCE_RATIO;
+      for (const r of state.rings) {
+        if (r === ring || r.shattered) continue;
+        r.hp -= splash;
+        r.shaking = Math.max(r.shaking, 0.5);
+        state.recentHits.push({ time: performance.now(), damage: splash });
+        if (r.hp <= 0) shatterRing(r);
+      }
+    }
+    if (ring.hp <= 0) shatterCurrentRing();
+  }
+
+  function updateBalls(dt, now) {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring || ring.shattered) return;
+    const boosted = now < state.boostUntil;
+    const targetSpeed = ballSpeed() * (boosted ? 1.5 : 1);
+
+    for (let bi = 0; bi < state.balls.length; bi++) {
+      const b = state.balls[bi];
+      const cur = Math.hypot(b.vx, b.vy) || 1;
+      b.vx = (b.vx / cur) * targetSpeed;
+      b.vy = (b.vy / cur) * targetSpeed;
+      const steps = 3, sdt = dt / steps;
+      for (let s = 0; s < steps; s++) {
+        b.x += b.vx * sdt;
+        b.y += b.vy * sdt;
+        const hit = checkRingCollision(ring, b);
+        if (hit) {
+          reflectBall(b, hit);
+          let dmg = damagePerHit() * (boosted ? 2.5 : 1);
+          if (Math.random() < critChance()) dmg *= CRIT_MULT;
+          applyHitDamage(ring, dmg, hit.hitX, hit.hitY, bi);
+          if (ring.shattered || state.gameOver) break;
+        }
+      }
+      // record trail at current world position (ball is locked at ballZ)
+      b.trail.push({ x: b.x, y: b.y, z: CONFIG.ballZ });
+      while (b.trail.length > 20) b.trail.shift();
+    }
+  }
+
+  // ============================================================
+  // SPIKES (enemies)
+  // ============================================================
+  // Red landing-zone telegraph that fades in on the play plane as the spike approaches.
+  // Gives the player a visual on WHERE the spike will hit so they can read the threat.
+  function makeSpikeTelegraph(x, y) {
+    const geom = new THREE.TorusGeometry(1.6, 0.08, 8, 36);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff3a3a, transparent: true, opacity: 0.0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const ring = new THREE.Mesh(geom, mat);
+    ring.position.set(x, y, CONFIG.ballZ + 0.05);
+    // Inner halo plane for extra glow
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: GLOW_TEX, color: 0xff4040,
+      transparent: true, opacity: 0.0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 4.5), haloMat);
+    halo.position.z = -0.02;
+    halo.userData.isBillboard = false; // keep flat to camera plane
+    ring.add(halo);
+    ring.userData.halo = halo;
+    return ring;
+  }
+
+  function makeSpikeMesh() {
+    const geom = new THREE.IcosahedronGeometry(0.9, 1);
+    const pos = geom.attributes.position;
+    // Displace vertices outward in a spiky pattern
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.array[i*3], y = pos.array[i*3+1], z = pos.array[i*3+2];
+      const f = 1 + Math.random() * 0.85;
+      pos.array[i*3]   = x * f;
+      pos.array[i*3+1] = y * f;
+      pos.array[i*3+2] = z * f;
+    }
+    geom.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xff3030, emissive: 0xff5040, emissiveIntensity: 1.5,
+      metalness: 0.55, roughness: 0.35,
+    });
+    const m = new THREE.Mesh(geom, mat);
+    // halo
+    const halo = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 4),
+      new THREE.MeshBasicMaterial({
+        map: GLOW_TEX, color: 0xff5040,
+        transparent: true, opacity: .7,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    halo.userData.isBillboard = true;
+    m.add(halo);
+    m.userData.halo = halo;
+    return m;
+  }
+
+  function spawnSpike() {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring) return;
+    // Aim inside the ACTIVE playable zone (currentRadius shrinks during the squeeze).
+    // Targeting ring.radius would put spikes outside the ball's reachable area at late stages.
+    const playR = (ring.currentRadius != null ? ring.currentRadius : ring.radius);
+    const safeR = Math.max(0.8, playR - 0.6);
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * safeR;
+    const sp = {
+      x: Math.cos(a) * r, y: Math.sin(a) * r,
+      z: CONFIG.enemyStartZ,
+      prevZ: CONFIG.enemyStartZ,
+      rotX: 0, rotY: 0, rotZ: 0,
+      rotSpeedX: rand(1, 3), rotSpeedY: rand(1, 3), rotSpeedZ: rand(1, 3),
+      speed: CONFIG.enemySpeed + state.stage * 1.2,
+      mesh: makeSpikeMesh(),
+      hit: false,
+    };
+    sp.mesh.position.set(sp.x, sp.y, sp.z);
+    scene.add(sp.mesh);
+    sp.telegraph = makeSpikeTelegraph(sp.x, sp.y);
+    scene.add(sp.telegraph);
+    state.spikes.push(sp);
+  }
+
+  function updateSpikes(dt) {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring) return;
+    for (let i = state.spikes.length - 1; i >= 0; i--) {
+      const s = state.spikes[i];
+      s.prevZ = s.z;
+      s.z += s.speed * dt;
+      s.rotX += s.rotSpeedX * dt;
+      s.rotY += s.rotSpeedY * dt;
+      s.rotZ += s.rotSpeedZ * dt;
+      s.mesh.position.z = s.z;
+      s.mesh.rotation.set(s.rotX, s.rotY, s.rotZ);
+      s.mesh.userData.halo.lookAt(camera.position);
+
+      // Telegraph: fade in over the spike's flight, then fade out after the cross.
+      if (s.telegraph) {
+        const span  = CONFIG.ballZ - CONFIG.enemyStartZ; // distance from spawn to ball plane
+        const prog  = (s.z - CONFIG.enemyStartZ) / span; // 0 at spawn, 1 at the kill plane, >1 past it
+        if (prog <= 1) {
+          s.telegraph.material.opacity = 0.12 + Math.max(0, prog) * 0.78;
+          if (s.telegraph.userData.halo) s.telegraph.userData.halo.material.opacity = 0.04 + Math.max(0, prog) * 0.36;
+        } else {
+          // After the spike crosses, briefly bloom then fade
+          const fade = Math.max(0, 1 - (prog - 1) * 4);
+          s.telegraph.material.opacity = fade;
+          if (s.telegraph.userData.halo) s.telegraph.userData.halo.material.opacity = fade * 0.4;
+        }
+        s.telegraph.rotation.z += dt * 1.6; // slow spin for visibility
+      }
+
+      if (s.z > CONFIG.enemyDespawnZ) {
+        if (s.telegraph) disposeMesh(s.telegraph);
+        disposeMesh(s.mesh);
+        state.spikes.splice(i, 1);
+        continue;
+      }
+      // SWEPT collision: did the spike cross the ball's plane this frame?
+      // The old window check (abs(z - ballZ) < 1.2) tunneled past the ball at higher stages
+      // because per-frame travel exceeded the window. Test the prevZ -> z segment instead.
+      if (!s.hit && s.prevZ <= CONFIG.ballZ && s.z > CONFIG.ballZ && state.balls.length > 1) {
+        const HIT_RADIUS = 1.5; // + ball.radius (~0.7) gives a ~2.2-unit kill zone (slightly bigger than the visual spike)
+        let bestJ = -1, bestD = Infinity;
+        for (let j = 0; j < state.balls.length; j++) {
+          const b = state.balls[j];
+          const d = Math.hypot(b.x - s.x, b.y - s.y);
+          if (d < bestD) { bestD = d; bestJ = j; }
+        }
+        if (bestJ >= 0 && bestD < HIT_RADIUS + state.balls[bestJ].radius) {
+          const dead = state.balls.splice(bestJ, 1)[0];
+          disposeMesh(dead.mesh);
+          if (dead.mesh?.userData.trailMesh) disposeMesh(dead.mesh.userData.trailMesh);
+          spawnSpikeBurst(s.x, s.y, CONFIG.ballZ);
+          s.hit = true;
+          sndSpike();
+          state.cameraShake = Math.min(1.5, state.cameraShake + 0.5);
+          if (s.telegraph) disposeMesh(s.telegraph);
+          disposeMesh(s.mesh);
+          state.spikes.splice(i, 1);
+          continue;
+        }
+      }
+    }
+
+    // Spawn more spikes after stage 1; rate ramps with stage. Phase 2 ramps faster.
+    if (state.stage >= 2 && !state.gameOver) {
+      state.spikeSpawnTimer -= dt;
+      if (state.spikeSpawnTimer <= 0) {
+        spawnSpike();
+        const floor = state.phase2 ? 2.5 : 3.5;
+        const ramp  = state.phase2 ? 0.4 : 0.3;
+        state.spikeSpawnTimer = Math.max(floor, CONFIG.enemySpawnInterval - state.stage * ramp);
+      }
+    }
+  }
+
+  function spawnSpikeBurst(x, y, z) {
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const ph = Math.random() * Math.PI;
+      const sp = rand(8, 24);
+      state.sparks.push({
+        x, y, z,
+        vx: Math.cos(a) * Math.sin(ph) * sp,
+        vy: Math.sin(a) * Math.sin(ph) * sp,
+        vz: Math.cos(ph) * sp,
+        life: 0, ttl: rand(.6, 1.1),
+        size: rand(.15, .35),
+        color: new THREE.Color().setHSL(.02 + Math.random() * .05, .9, .6),
+        mesh: null,
+      });
+    }
+  }
+
+  // ============================================================
+  // TRACKER (homing enemy) — unlocks at stage 5+, drifts toward nearest ball during flight
+  // ============================================================
+  function makeTrackerMesh() {
+    const grp = new THREE.Group();
+    const core = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.7, 0),
+      new THREE.MeshStandardMaterial({
+        color: 0xb030ff, emissive: 0xc04fff, emissiveIntensity: 1.6,
+        metalness: 0.6, roughness: 0.25,
+      })
+    );
+    grp.add(core);
+    const halo = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.6, 3.6),
+      new THREE.MeshBasicMaterial({
+        map: GLOW_TEX, color: 0xc060ff,
+        transparent: true, opacity: 0.85,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    halo.userData.isBillboard = true;
+    grp.add(halo);
+    grp.userData.halo = halo;
+    return grp;
+  }
+
+  function makeTrackerTelegraph(x, y) {
+    const geom = new THREE.TorusGeometry(1.4, 0.07, 8, 32);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xc060ff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const m = new THREE.Mesh(geom, mat);
+    m.position.set(x, y, CONFIG.ballZ + 0.04);
+    return m;
+  }
+
+  function spawnTracker() {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring || !state.balls.length) return;
+    const playR = (ring.currentRadius != null ? ring.currentRadius : ring.radius);
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * Math.max(0.6, playR - 0.6);
+    const tk = {
+      x: Math.cos(a) * r, y: Math.sin(a) * r,
+      z: CONFIG.enemyStartZ,
+      prevZ: CONFIG.enemyStartZ,
+      speed: CONFIG.trackerSpeed + state.stage * 0.3,
+      homingRate: CONFIG.trackerHomingRate * (1 + state.stage * 0.04),
+      rotX: 0, rotY: 0, rotZ: 0,
+      mesh: makeTrackerMesh(),
+      telegraph: null,
+      hit: false,
+    };
+    tk.mesh.position.set(tk.x, tk.y, tk.z);
+    scene.add(tk.mesh);
+    tk.telegraph = makeTrackerTelegraph(tk.x, tk.y);
+    scene.add(tk.telegraph);
+    state.trackers.push(tk);
+  }
+
+  function updateTrackers(dt) {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring) return;
+
+    for (let i = state.trackers.length - 1; i >= 0; i--) {
+      const t = state.trackers[i];
+      // Home toward nearest ball (gentle drift; capped per-frame so it can be dodged)
+      let nearest = null, nd = Infinity;
+      for (const b of state.balls) {
+        const d = Math.hypot(b.x - t.x, b.y - t.y);
+        if (d < nd) { nd = d; nearest = b; }
+      }
+      if (nearest) {
+        const dx = nearest.x - t.x, dy = nearest.y - t.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const cap = Math.min(t.homingRate * dt, len);
+        t.x += (dx / len) * cap;
+        t.y += (dy / len) * cap;
+      }
+      t.prevZ = t.z;
+      t.z += t.speed * dt;
+      t.rotX += dt * 1.4; t.rotY += dt * 1.7; t.rotZ += dt * 0.9;
+      t.mesh.position.set(t.x, t.y, t.z);
+      t.mesh.rotation.set(t.rotX, t.rotY, t.rotZ);
+      t.mesh.userData.halo.lookAt(camera.position);
+
+      // Telegraph follows the (homing) xy live so the player can read where it's heading
+      if (t.telegraph) {
+        t.telegraph.position.set(t.x, t.y, CONFIG.ballZ + 0.04);
+        const span = CONFIG.ballZ - CONFIG.enemyStartZ;
+        const prog = (t.z - CONFIG.enemyStartZ) / span;
+        if (prog <= 1) t.telegraph.material.opacity = 0.1 + Math.max(0, prog) * 0.7;
+        else t.telegraph.material.opacity = Math.max(0, 1 - (prog - 1) * 4);
+        t.telegraph.rotation.z += dt * 2;
+      }
+
+      if (t.z > CONFIG.enemyDespawnZ) {
+        if (t.telegraph) disposeMesh(t.telegraph);
+        disposeMesh(t.mesh);
+        state.trackers.splice(i, 1);
+        continue;
+      }
+      if (!t.hit && t.prevZ <= CONFIG.ballZ && t.z > CONFIG.ballZ && state.balls.length > 1) {
+        const HIT_RADIUS = 1.4;
+        let bestJ = -1, bestD = Infinity;
+        for (let j = 0; j < state.balls.length; j++) {
+          const b = state.balls[j];
+          const d = Math.hypot(b.x - t.x, b.y - t.y);
+          if (d < bestD) { bestD = d; bestJ = j; }
+        }
+        if (bestJ >= 0 && bestD < HIT_RADIUS + state.balls[bestJ].radius) {
+          const dead = state.balls.splice(bestJ, 1)[0];
+          disposeMesh(dead.mesh);
+          if (dead.mesh?.userData.trailMesh) disposeMesh(dead.mesh.userData.trailMesh);
+          spawnSpikeBurst(t.x, t.y, CONFIG.ballZ);
+          t.hit = true;
+          sndTracker();
+          state.cameraShake = Math.min(1.2, state.cameraShake + 0.4);
+          if (t.telegraph) disposeMesh(t.telegraph);
+          disposeMesh(t.mesh);
+          state.trackers.splice(i, 1);
+          continue;
+        }
+      }
+    }
+
+    // Spawn cadence — unlocks at stage 5; rate gently ramps with stage. Phase 2 floor lowered.
+    if (state.stage >= 5 && !state.gameOver) {
+      state.trackerSpawnTimer -= dt;
+      if (state.trackerSpawnTimer <= 0) {
+        spawnTracker();
+        const floor = state.phase2 ? 4 : 5;
+        state.trackerSpawnTimer = Math.max(floor, CONFIG.trackerSpawnInterval - state.stage * 0.2);
+      }
+    }
+  }
+
+  // ============================================================
+  // SPARKS (per-impact little particles, 3D)
+  // ============================================================
+  function spawnHitSparks(x, y, z, hue) {
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const ph = (Math.random() - .5) * Math.PI * 0.5;
+      const sp = rand(3, 9);
+      state.sparks.push({
+        x, y, z,
+        vx: Math.cos(a) * Math.cos(ph) * sp,
+        vy: Math.sin(a) * Math.cos(ph) * sp,
+        vz: Math.sin(ph) * sp,
+        life: 0, ttl: rand(.18, .4),
+        size: rand(.1, .25),
+        color: new THREE.Color().setHSL((hue + rand(-15,15))/360, .9, .7),
+        mesh: null,
+      });
+    }
+  }
+
+  // Use a single instanced sprite-style particle set: small additive planes
+  // For simplicity, we create/dispose Points geometry occasionally â but per-spark mesh creation is fine for a low count
+  function ensureSparkMesh(s) {
+    if (s.mesh) return;
+    const geom = new THREE.PlaneGeometry(s.size, s.size);
+    const mat = new THREE.MeshBasicMaterial({
+      map: GLOW_TEX, color: s.color,
+      transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const m = new THREE.Mesh(geom, mat);
+    m.userData.isBillboard = true;
+    scene.add(m);
+    s.mesh = m;
+  }
+
+  function updateSparks(dt) {
+    for (let i = state.sparks.length - 1; i >= 0; i--) {
+      const s = state.sparks[i];
+      s.life += dt;
+      const t = s.life / s.ttl;
+      if (t >= 1) {
+        if (s.mesh) disposeMesh(s.mesh);
+        state.sparks.splice(i, 1);
+        continue;
+      }
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.z += s.vz * dt;
+      s.vx *= 0.95; s.vy *= 0.95; s.vz *= 0.95;
+      ensureSparkMesh(s);
+      s.mesh.position.set(s.x, s.y, s.z);
+      s.mesh.lookAt(camera.position);
+      s.mesh.material.opacity = 1 - t;
+      const sc = 1 - t * 0.5;
+      s.mesh.scale.setScalar(sc);
+    }
+  }
+
+  // ============================================================
+  // FRAGMENTS (ring shatter pieces)
+  // ============================================================
+  function spawnRingShatter(ring) {
+    const N = (ring.sides && ring.sides >= 3) ? ring.sides : 24;
+    const apothem = (ring.sides && ring.sides >= 3) ? ring.radius * Math.cos(Math.PI / N) : ring.radius;
+    for (let i = 0; i < N * 2; i++) {
+      const a = (i / (N * 2)) * Math.PI * 2 + ring.rotation;
+      const x = Math.cos(a) * ring.radius;
+      const y = Math.sin(a) * ring.radius;
+      const out = rand(6, 15);
+      const sp = rand(4, 12);
+      state.fragments.push({
+        x, y, z: ring.z,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        vz: rand(-3, 6),
+        rx: 0, ry: 0, rz: a,
+        rsx: rand(-4, 4), rsy: rand(-4, 4), rsz: rand(-4, 4),
+        life: 0, ttl: rand(.9, 1.6),
+        len: rand(0.6, 1.6),
+        thickness: 0.18,
+        hue: ring.hue,
+        mesh: null,
+      });
+    }
+  }
+  function ensureFragmentMesh(f) {
+    if (f.mesh) return;
+    const geom = new THREE.BoxGeometry(f.len, f.thickness, f.thickness);
+    const col = new THREE.Color().setHSL(f.hue / 360, .85, .6);
+    const mat = new THREE.MeshStandardMaterial({
+      color: col, emissive: col, emissiveIntensity: 1.6, metalness: .4, roughness: .4,
+    });
+    const m = new THREE.Mesh(geom, mat);
+    scene.add(m);
+    f.mesh = m;
+  }
+  function updateFragments(dt) {
+    for (let i = state.fragments.length - 1; i >= 0; i--) {
+      const f = state.fragments[i];
+      f.life += dt;
+      const t = f.life / f.ttl;
+      if (t >= 1) {
+        if (f.mesh) disposeMesh(f.mesh);
+        state.fragments.splice(i, 1);
+        continue;
+      }
+      f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
+      f.vx *= 0.97; f.vy *= 0.97; f.vz *= 0.97;
+      f.rx += f.rsx * dt; f.ry += f.rsy * dt; f.rz += f.rsz * dt;
+      ensureFragmentMesh(f);
+      f.mesh.position.set(f.x, f.y, f.z);
+      f.mesh.rotation.set(f.rx, f.ry, f.rz);
+      f.mesh.material.opacity = 1 - t;
+      f.mesh.material.emissiveIntensity = 1.6 * (1 - t * 0.5);
+    }
+  }
+
+  // ============================================================
+  // STAGE / RING LIFECYCLE
+  // ============================================================
+  function generateStage(animateIn = true) {
+    // dispose existing ring meshes
+    for (const r of state.rings) if (r.mesh) disposeMesh(r.mesh);
+    for (const sp of state.spikes) {
+      if (sp.telegraph) disposeMesh(sp.telegraph);
+      disposeMesh(sp.mesh);
+    }
+    state.spikes = [];
+    for (const tk of state.trackers) { if (tk.mesh) disposeMesh(tk.mesh); }
+    state.trackers = [];
+    state.trackerSpawnTimer = CONFIG.trackerSpawnInterval;
+    state.spikeSpawnTimer = CONFIG.enemySpawnInterval;
+
+    state.stageShape = pickShapeForStage(state.stage);
+    state.rings = [];
+    const shrinkRate  = (CONFIG.baseShrinkRate  + (state.stage - 1) * CONFIG.shrinkPerStage)  * slowMult();
+    for (let i = 0; i < state.ringsPerStage; i++) {
+      const r = {
+        idx: i,
+        sides: state.stageShape.sides,
+        radius: CONFIG.baseRingRadius + i * CONFIG.ringRadiusStep,
+        currentRadius: CONFIG.baseRingRadius + i * CONFIG.ringRadiusStep, // starts full, shrinks while active
+        z: CONFIG.ballZ - i * CONFIG.layerZStagger, // concentric layers at near-same z (micro stagger only)
+        hp: ringHp(state.stage, i), maxHp: ringHp(state.stage, i),
+        rotation: rand(0, Math.PI * 2),
+        rotSpeed: (i % 2 === 0 ? 1 : -1) * (0.15 + i * 0.05),
+        zSpeed: 0,
+        shrinkRate: shrinkRate,
+        shaking: 0, shattered: false,
+        hue: 190 + i * 24, // cyan(190) â blue â violet â magenta(286)
+        zTween: null,
+        mesh: null,
+      };
+      r.mesh = createRingMesh(r);
+      scene.add(r.mesh);
+      state.rings.push(r);
+    }
+    state.activeRingIdx = 0;
+    state.gameOver = false;
+    spawnBalls();
+  }
+
+  function shatterRing(ring) {
+    if (ring.shattered) return;
+    ring.shattered = true;
+    spawnRingShatter(ring);
+    if (ring.mesh) { disposeMesh(ring.mesh); ring.mesh = null; }
+    // pitch high for inner, low for outer
+    const pitchScale = 1.4 - (ring.idx / state.ringsPerStage) * 0.5;
+    sndShatter(pitchScale);
+    state.cameraShake = Math.min(1.8, state.cameraShake + 0.6);
+    state.tunnelPulse = 1.0;
+  }
+
+  function shatterCurrentRing() {
+    const ring = state.rings[state.activeRingIdx];
+    if (!ring) return;
+    shatterRing(ring);
+    state.activeRingIdx++;
+    while (state.activeRingIdx < state.rings.length && state.rings[state.activeRingIdx].shattered) {
+      state.activeRingIdx++;
+    }
+
+    if (state.activeRingIdx >= state.rings.length) {
+      const reward = stageReward(state.stage);
+      state.cash += reward; state.totalEarned += reward;
+      state.stage++; state.level++;
+      state.ringsPerStage = Math.min(8, 5 + Math.floor(state.stage / 5));
+      sndStageUp();
+      showToast(`STAGE ${state.stage}`);
+      // Music: enter Phase 2 at level 21, otherwise just swap to next stage's guitar loop / kit variant
+      if (state.level >= 21 && !state.phase2) enterPhase2();
+      else setStageMusic(state.stage);
+      setTimeout(() => generateStage(true), 500);
+    } else {
+      // Next layer becomes active â already in place; reset its radius for a fresh squeeze window
+      const nextRing = state.rings[state.activeRingIdx];
+      nextRing.currentRadius = nextRing.radius;
+      // Re-aim balls so they don't continue toward the (now non-existent) inner wall
+      for (const b of state.balls) {
+        b.x *= 0.4; b.y *= 0.4;
+        const speed = ballSpeed();
+        const a = Math.atan2(b.vy, b.vx);
+        b.vx = Math.cos(a) * speed; b.vy = Math.sin(a) * speed;
+        b.trail = [];
+      }
+    }
+  }
+
+  // ============================================================
+  // GAME LOOP
+  // ============================================================
+  let last = performance.now();
+  let _loopErrorReported = false;
+  function loop(now) {
+    try {
+    const dt = Math.min((now - last) / 1000, 1 / 15);
+    last = now;
+    const t = now / 1000;
+
+    // Concentric layered rings â all visible at near-same z. Active (innermost non-shattered) shrinks
+    // as a squeeze threat; outer layers wait their turn as the ball breaks through each one.
+    if (!state.gameOver) {
+      for (let i = 0; i < state.rings.length; i++) {
+        const r = state.rings[i];
+        if (r.shattered) continue;
+        r.rotation += r.rotSpeed * dt;
+
+        if (i === state.activeRingIdx) {
+          // SQUEEZE â active ring radius decreases until it crushes the ball
+          r.currentRadius = Math.max(0, r.currentRadius - r.shrinkRate * dt);
+          if (r.currentRadius <= CONFIG.minActiveRadius) {
+            state.gameOver = true;
+            state.gameOverTime = now;
+            sndGameOver();
+            state.cameraShake = 2.5;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!state.gameOver) updateBalls(dt, now);
+    updateSpikes(dt);
+    updateTrackers(dt);
+    updateSparks(dt);
+    updateFragments(dt);
+    updateBackground(dt);
+    updateTunnel(dt, now);
+
+    // Sync ring meshes
+    for (let i = 0; i < state.rings.length; i++) {
+      const r = state.rings[i];
+      if (r.shattered || !r.mesh) continue;
+      updateRingMesh(r, r.mesh, i === state.activeRingIdx);
+    }
+    // Sync ball meshes
+    for (const b of state.balls) updateBallMesh(b);
+
+    // Camera sway + shake + threat-induced punch-in
+    state.cameraSwayT += dt;
+    state.cameraShake *= 0.9;
+    const sway = 0.18;
+    let camX = Math.sin(state.cameraSwayT * 0.4) * sway;
+    let camY = Math.cos(state.cameraSwayT * 0.3) * sway * 0.7;
+    if (state.cameraShake > 0.01) {
+      camX += (Math.random() - 0.5) * state.cameraShake * 0.4;
+      camY += (Math.random() - 0.5) * state.cameraShake * 0.4;
+    }
+    // Threat: zoom in slightly as ring approaches crush, plus FOV widens
+    const threat = threatLevel();
+    const targetZ = CONFIG.cameraZ - threat * 4;
+    camera.position.x += (camX - camera.position.x) * 0.12;
+    camera.position.y += (camY - camera.position.y) * 0.12;
+    camera.position.z += (targetZ - camera.position.z) * 0.05;
+    camera.lookAt(0, 0, 0);
+
+    // Boost effect: brief FOV widen
+    const boosted = now < state.boostUntil;
+    const targetFov = CONFIG.fov + (boosted ? 12 : 0);
+    camera.fov += (targetFov - camera.fov) * 0.15;
+    camera.updateProjectionMatrix();
+
+    // Cash income
+    const cps = cashPerSec();
+    const earned = cps * dt;
+    state.cash += earned; state.totalEarned += earned;
+
+    // Save periodically
+    if (now - state.lastSave > 5000) { state.lastSave = now; saveState(); }
+
+    // Game-over modal
+    if (state.gameOver && state.gameOverTime && now - state.gameOverTime > 900 && !state.gameOverShown) {
+      state.gameOverShown = true;
+      $('goStage').textContent = `STAGE ${state.stage}`;
+      $('goDmg').textContent   = state.damageLevel;
+      $('goDps').textContent   = fmt(dpsValue());
+      $('goTotal').textContent = fmt(state.totalEarned);
+      $('gameOverModal').classList.add('open');
+    }
+
+    // Throttle UI updates
+    if (Math.floor(now / 100) !== Math.floor((now - dt * 1000) / 100)) updateUI();
+
+    // HP floater overlay (HTML element positioned via screen-projection)
+    updateHpFloater();
+
+    renderer.render(scene, camera);
+    } catch (err) {
+      if (!_loopErrorReported) {
+        console.error('[loop] frame error — reporting once, will keep retrying:', err);
+        _loopErrorReported = true;
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function updateHpFloater() {
+    const ring = state.rings[state.activeRingIdx];
+    const el = $('hpFloater');
+    if (!ring || ring.shattered || !state.balls.length || state.gameOver) {
+      el.style.display = 'none';
+      return;
+    }
+    const b = state.balls[0];
+    const v = new THREE.Vector3(b.x, b.y + b.radius * 2.5, CONFIG.ballZ);
+    v.project(camera);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    if (v.z > 1 || v.z < -1) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.textContent = fmt(Math.max(0, Math.ceil(ring.hp)));
+  }
+
+  // ============================================================
+  // UI
+  // ============================================================
+  const $ = id => document.getElementById(id);
+  function updateUI() {
+    $('cashVal').textContent = fmt(state.cash);
+    $('gemVal').textContent  = fmt(state.gems);
+    $('keyVal').textContent  = state.keys;
+    $('lvlVal').textContent  = `LVL ${state.level}`;
+    const shapeName = state.stageShape ? state.stageShape.name : 'CIRCLE';
+    $('stageLabel').textContent = `STAGE ${state.stage} Â· ${shapeName}`;
+    const pct = Math.floor(stageProgress() * 100);
+    $('stagePct').textContent = `${pct}%`;
+    $('stagePct').classList.toggle('advanced', pct > 70);
+    $('progressFill').style.width = pct + '%';
+
+    $('dpsVal').textContent = fmt(dpsValue());
+    $('ballCountVal').textContent = state.balls.length;
+
+    const setAffordable = (id, cost) => {
+      const can = state.cash >= cost;
+      const el = $(id);
+      el.classList.toggle('affordable', can);
+      el.disabled = !can;
+      el.querySelector('.cost').classList.toggle('too-expensive', !can);
+    };
+
+    $('dmgLv').textContent  = `LEVEL ${state.damageLevel}`;
+    $('dmgVal').textContent = fmt(damagePerHit());
+    $('dmgCost').textContent = fmt(damageUpgradeCost());
+    setAffordable('dmgBtn', damageUpgradeCost());
+    $('dmgMultFill').style.width  = ((state.damageLevel % 10) * 10) + '%';
+    $('dmgMultTag').textContent  = `Ã${Math.pow(2, Math.floor(state.damageLevel / 10) + 1)}`;
+
+    $('cashLv').textContent  = `LEVEL ${state.cashLevel}`;
+    $('cashIncVal').textContent = fmt(cashPerSec());
+    $('cashCost').textContent = fmt(cashUpgradeCost());
+    setAffordable('cashBtn', cashUpgradeCost());
+    $('cashMultFill').style.width = ((state.cashLevel % 10) * 10) + '%';
+    $('cashMultTag').textContent = `Ã${Math.pow(2, Math.floor(state.cashLevel / 10) + 1)}`;
+
+    $('velLv').textContent  = `LEVEL ${state.velocityLevel}`;
+    $('velVal').textContent = velocityMult().toFixed(2);
+    $('velCost').textContent = fmt(velocityCost());
+    setAffordable('velBtn', velocityCost());
+
+    $('mbLv').textContent  = `LEVEL ${state.multiballLevel}`;
+    $('mbVal').textContent = ballCount();
+    if (ballCount() >= 8) {
+      $('mbCost').textContent = 'MAX';
+      $('mbBtn').classList.remove('affordable');
+      $('mbBtn').disabled = true;
+    } else {
+      $('mbCost').textContent = fmt(multiballCost());
+      setAffordable('mbBtn', multiballCost());
+    }
+
+    $('critLv').textContent  = `LEVEL ${state.critLevel}`;
+    $('critVal').textContent = Math.floor(critChance() * 100);
+    $('critCost').textContent = fmt(critCost());
+    setAffordable('critBtn', critCost());
+
+    $('slowLv').textContent  = `LEVEL ${state.slowLevel}`;
+    $('slowVal').textContent = Math.floor((1 - slowMult()) * 100);
+    $('slowCost').textContent = fmt(slowCost());
+    setAffordable('slowBtn', slowCost());
+
+    $('pierceLv').textContent  = `LEVEL ${state.pierceLevel}`;
+    $('pierceVal').textContent = Math.floor(pierceChance() * 100);
+    $('pierceCost').textContent = fmt(pierceCost());
+    setAffordable('pierceBtn', pierceCost());
+  }
+
+  function showToast(text) {
+    const host = document.getElementById('toastHost');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 1700);
+  }
+
+  function flashUpgrade(id) {
+    const el = document.getElementById(id);
+    el.animate([
+      { transform: 'scale(1)' },
+      { transform: 'scale(1.04)' },
+      { transform: 'scale(1)' },
+    ], { duration: 320, easing: 'ease-out' });
+  }
+
+  // ============================================================
+  // UPGRADE BUYS
+  // ============================================================
+  function tryBuyDamage()    { if (state.cash >= damageUpgradeCost()) { state.cash -= damageUpgradeCost(); state.damageLevel++; flashUpgrade('dmgBtn'); sndUpgrade(); updateUI(); } }
+  function tryBuyCash()      { if (state.cash >= cashUpgradeCost())   { state.cash -= cashUpgradeCost();   state.cashLevel++;   flashUpgrade('cashBtn'); sndUpgrade(); updateUI(); } }
+  function tryBuyVelocity()  { if (state.cash >= velocityCost())      { state.cash -= velocityCost();     state.velocityLevel++; flashUpgrade('velBtn'); sndUpgrade(); updateUI(); } }
+  function tryBuyMultiball() { if (state.cash >= multiballCost() && ballCount() < 8) { state.cash -= multiballCost(); state.multiballLevel++; syncBallCount(); flashUpgrade('mbBtn'); sndUpgrade(); updateUI(); } }
+  function tryBuyCrit()      { if (state.cash >= critCost())          { state.cash -= critCost();         state.critLevel++;     flashUpgrade('critBtn'); sndUpgrade(); updateUI(); } }
+  function tryBuySlow() {
+    if (state.cash >= slowCost()) {
+      state.cash -= slowCost(); state.slowLevel++;
+      const ringSpeed = (CONFIG.baseRingSpeedZ + (state.stage - 1) * CONFIG.ringSpeedPerStage) * slowMult();
+      for (const r of state.rings) r.zSpeed = ringSpeed;
+      flashUpgrade('slowBtn'); sndUpgrade(); updateUI();
+    }
+  }
+  function tryBuyPierce()    { if (state.cash >= pierceCost())        { state.cash -= pierceCost();       state.pierceLevel++;   flashUpgrade('pierceBtn'); sndUpgrade(); updateUI(); } }
+
+  // ============================================================
+  // PERSISTENCE
+  // ============================================================
+  async function saveState() {
+    try {
+      const payload = {
+        cash: state.cash, totalEarned: state.totalEarned, gems: state.gems, keys: state.keys,
+        stage: state.stage, level: state.level,
+        damageLevel: state.damageLevel, cashLevel: state.cashLevel,
+        velocityLevel: state.velocityLevel, multiballLevel: state.multiballLevel,
+        critLevel: state.critLevel, slowLevel: state.slowLevel, pierceLevel: state.pierceLevel,
+        ringsPerStage: state.ringsPerStage, activeRingIdx: state.activeRingIdx,
+        ringsHp: state.rings.map(r => r.hp),
+        ringsZ:  state.rings.map(r => r.z),
+        phase2: state.phase2,
+        timestamp: Date.now(),
+      };
+      await storage.set('save3d', JSON.stringify(payload));
+    } catch {}
+  }
+  async function loadState() {
+    try {
+      const r = await storage.get('save3d');
+      if (!r) { generateStage(false); return; }
+      const s = JSON.parse(r.value);
+      state.cash = s.cash ?? 50;
+      state.totalEarned = s.totalEarned ?? 0;
+      state.gems = s.gems ?? 595;
+      state.keys = s.keys ?? 2;
+      state.stage = s.stage ?? 1;
+      state.level = s.level ?? 1;
+      state.damageLevel = s.damageLevel ?? 1;
+      state.cashLevel   = s.cashLevel ?? 1;
+      state.velocityLevel  = s.velocityLevel ?? 0;
+      state.multiballLevel = s.multiballLevel ?? 0;
+      state.critLevel      = s.critLevel ?? 0;
+      state.slowLevel      = s.slowLevel ?? 0;
+      state.pierceLevel    = s.pierceLevel ?? 0;
+      state.ringsPerStage  = s.ringsPerStage ?? 5;
+      state.phase2         = !!s.phase2;
+      generateStage(false);
+      if (Array.isArray(s.ringsHp) && s.ringsHp.length === state.rings.length) {
+        for (let i = 0; i < state.rings.length; i++) {
+          state.rings[i].hp = Math.min(state.rings[i].maxHp, s.ringsHp[i]);
+          if (state.rings[i].hp <= 0) shatterRing(state.rings[i]);
+        }
+        state.activeRingIdx = s.activeRingIdx ?? 0;
+        while (state.activeRingIdx < state.rings.length && state.rings[state.activeRingIdx].shattered) state.activeRingIdx++;
+        // Recovery: if the saved snapshot leaves every ring shattered, the player was caught mid-stage-advance.
+        // Regenerate a fresh stage rather than spawning into a dead world with no rings to bounce in.
+        if (state.activeRingIdx >= state.rings.length) {
+          generateStage(false);
+        } else {
+          for (let i = 0; i < state.rings.length; i++) {
+            if (state.rings[i].shattered) continue;
+            state.rings[i].z = CONFIG.ballZ - i * CONFIG.layerZStagger;
+          }
+        }
+      }
+      if (s.timestamp) {
+        const elapsed = Math.min(8 * 3600, (Date.now() - s.timestamp) / 1000);
+        if (elapsed > 30) {
+          const offline = cashPerSec() * elapsed * 0.5;
+          state.cash += offline; state.totalEarned += offline;
+          showOfflineToast(offline, elapsed);
+        }
+      }
+    } catch { generateStage(false); }
+  }
+  function showOfflineToast(amount, sec) {
+    const div = document.createElement('div');
+    div.className = 'offline-toast';
+    const mins = Math.floor(sec / 60);
+    div.textContent = `+ ${fmt(amount)} ð° (${mins < 60 ? mins + 'm' : Math.floor(mins / 60) + 'h'} offline)`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 4200);
+  }
+  async function resetGame() {
+    try { await storage.delete('save3d'); } catch {}
+    Object.assign(state, {
+      cash: 50, totalEarned: 0, gems: 595, keys: 2,
+      stage: 1, level: 1,
+      damageLevel: 1, cashLevel: 1,
+      velocityLevel: 0, multiballLevel: 0, critLevel: 0, slowLevel: 0, pierceLevel: 0,
+      ringsPerStage: 5, activeRingIdx: 0,
+      gameOver: false, gameOverShown: false,
+      phase2: false,
+    });
+    stopMusicSources();
+    $('gameOverModal').classList.remove('open');
+    generateStage(true);
+    setStageMusic(state.stage);
+    updateUI();
+  }
+
+  // ============================================================
+  // EVENT WIRING
+  // ============================================================
+  $('dmgBtn').addEventListener('click', tryBuyDamage);
+  $('cashBtn').addEventListener('click', tryBuyCash);
+  $('velBtn').addEventListener('click', tryBuyVelocity);
+  $('mbBtn').addEventListener('click', tryBuyMultiball);
+  $('critBtn').addEventListener('click', tryBuyCrit);
+  $('slowBtn').addEventListener('click', tryBuySlow);
+  $('pierceBtn').addEventListener('click', tryBuyPierce);
+
+  $('menuBtn').addEventListener('click', () => {
+    $('mStage').textContent = state.stage;
+    $('mLevel').textContent = state.level;
+    $('mDps').textContent = fmt(dpsValue());
+    $('mCps').textContent = fmt(cashPerSec());
+    $('mTotal').textContent = fmt(state.totalEarned);
+    $('modal').classList.add('open');
+  });
+
+  // Pack modal wiring — open / close / load / re-roll / restore-bundled
+  $('packBtn').addEventListener('click', () => {
+    initAudio();
+    if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+    loadManifestAndSamples();
+    refreshPackUI();
+    $('packModal').classList.add('open');
+  });
+  $('closePackModal').addEventListener('click', () => $('packModal').classList.remove('open'));
+  $('loadPackBtn').addEventListener('click', () => pickPackDirectory());
+  $('packFileInput').addEventListener('change', (e) => loadPackFromFileList(e.target.files));
+  $('rerollKitBtn').addEventListener('click', () => rerollKit());
+  $('resetPackBtn').addEventListener('click', async () => {
+    await clearPackHandle();
+    packState.dirHandle = null;
+    packState.isCustom = false;
+    packState.name = 'MOONBOY · Punk Live (bundled)';
+    samples.loaded = false;
+    samples.loadStarted = false;
+    samples.drums = { kicks: [], snares: [], closedHats: [], openHats: [], toms: [], tomsLo: [], crashes: [] };
+    samples.guitarLoops = [];
+    samples.drumLoops = [];
+    stopMusicSources();
+    await loadManifestAndSamples(); // reloads the bundled MOONBOY pack
+    refreshPackUI();
+    showToast('BUNDLED PACK RESTORED');
+  });
+  $('closeModal').addEventListener('click', () => $('modal').classList.remove('open'));
+  $('resetGame').addEventListener('click', () => { if (confirm('Wipe all progress and start fresh?')) { resetGame(); $('modal').classList.remove('open'); } });
+  $('retryBtn').addEventListener('click', () => {
+    state.gameOver = false; state.gameOverShown = false;
+    $('gameOverModal').classList.remove('open');
+    generateStage(true);
+  });
+
+  // Mute toggle
+  $('muteBtn').addEventListener('click', async () => {
+    audio.muted = !audio.muted;
+    const icon = $('muteIcon');
+    if (audio.muted) {
+      icon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+      $('muteBtn').style.opacity = '0.5';
+    } else {
+      icon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>';
+      $('muteBtn').style.opacity = '1';
+    }
+    try { await storage.set('muted', audio.muted ? '1' : '0'); } catch {}
+  });
+  (async () => {
+    try {
+      const r = await storage.get('muted');
+      if (r && r.value === '1') {
+        audio.muted = true;
+        $('muteIcon').innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+        $('muteBtn').style.opacity = '0.5';
+      }
+    } catch {}
+  })();
+
+  // Tap canvas → boost
+  document.getElementById('game').addEventListener('pointerdown', () => {
+    initAudio();
+    if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+    loadManifestAndSamples();
+    startBeat();
+    state.boostUntil = performance.now() + 600;
+    sndBoost();
+  });
+  // Unlock audio on first interaction anywhere
+  function unlockAudio() {
+    initAudio();
+    if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+    loadManifestAndSamples();
+    startBeat();
+    // If a previously-loaded pack is still permitted, reconnect silently
+    restoreLastPackIfPossible();
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('keydown', unlockAudio, { once: true });
+
+  // Resize handling
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Save on close / hidden
+  window.addEventListener('beforeunload', saveState);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  // Register service worker for offline PWA play (samples + shell cached on first visit)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  initThree();
+  loadState().then(() => {
+    updateUI();
+    last = performance.now();
+    requestAnimationFrame(loop);
+  });
+})();
+</script>
+</body>
+</html>

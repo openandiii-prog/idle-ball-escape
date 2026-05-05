@@ -1,0 +1,14 @@
+# Raw WAV samples — local-only originals (158MB). Re-derive via the script in scripts/.
+samples/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs / build artifacts
+*.log
+node_modules/
+
+# Note: samples-opus/ IS tracked. It's the deployable Opus mirror (~15MB).
